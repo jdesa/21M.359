@@ -9,12 +9,19 @@ sys.path.append('./common')
 from core import *
 
 kSamplingRate = 44100
+keydict = {"c":0, "csharp":1, "dflat": 1, "d": 2, "dsharp":3, "eflat":3, "e":4, "esharp": 5, "fflat":5, "f":6, "fsharp":7, "gflat":7, "g":8, "gsharp":9, "aflat":9, "a": 10, "asharp":11, "bflat":11, "b":12, "bsharp":0}
 
+def pitch_to_frequency(pitch):
+   Apitch = 69
+   pitchdif = pitch - Apitch
+   return 440*((2)**(1.0/12))**pitchdif
+   
 class Audio:
    def __init__(self):
       self.gain = .5
       self.generatorlist = []
       self.audio = pyaudio.PyAudio()
+
       dev_idx = self._find_best_output()
       self.stream = self.audio.open(format = pyaudio.paFloat32,
                                     channels = 1,
@@ -26,7 +33,44 @@ class Audio:
                                     stream_callback = self._callback)
       register_terminate_func(self.close)
 
-      
+      self.wavetype = "sine"
+      self.octave = 4
+      self.rootpitch = 60 #MiddleC
+      self.isminor = False
+
+      #Dictionary showing the pitch locations of each key
+
+   ############################
+   ###  Extra Functions
+   ############################   
+
+   def set_key(self, newkey):
+      baserootpitch = keydict[newkey]
+      newrootpitch = baserootpitch + 12*(self.octave + 1)
+      self.change_generator_pitches(newrootpitch)
+      self.rootpitch = newrootpitch
+
+   def set_octave(self, newoctave):
+      newrootpitch = (baserootpitch)%60 + 12*(newoctave+1)
+      self.change_generator_pitches(newrootpitch)
+      self.rootpitch = newrootpitch
+
+   def change_generator_pitches(self, newrootpitch):
+      rootpitchdiff = self.rootpitch - newrootpitch
+      for generator in self.generatorlist:
+         generator.change_pitch(rootpitchdiff)
+
+   def set_wavetype(self, wavetype):
+      for generator in self.generatorlist:
+         generator.set_wavetype(self, wavetype)
+
+   def change_to_minor(self, isminor):
+      self.isminor = isminor
+
+   ############################
+   ### Generator Functions
+   ############################   
+   
    def add_generator(self, gen):
       self.generatorlist.append(gen)
 
@@ -41,15 +85,15 @@ class Audio:
             generator.set_attack_status(False)
             generator.set_decay_frame()
 
-   def get_generators(self):
-      for generator in self.generatorlist:
-         print generator.getName()
-
    def set_gain(self, gain) :
       self.gain = gain
 
    def get_gain(self) :
       return self.gain
+
+   def print_generators(self):
+      for generator in self.generatorlist:
+         print generator.getName()
 
    def _callback(self, in_data, frame_count, time_info, status):
       output = np.zeros(frame_count, dtype = np.float32)
@@ -61,7 +105,6 @@ class Audio:
             self.remove_generator(generator)
       output = output*self.gain/len(self.generatorlist)
       return (output.tostring(), pyaudio.paContinue)
-
 
    # return the best output index if found. Otherwise, return None
    def _find_best_output(self):
@@ -96,6 +139,7 @@ class Audio:
 
 class NoteGenerator(object):
    def __init__(self,pitch):
+      self.pitch = pitch
       self.freq = pitch_to_frequency(pitch)
       self.frames = 0
 
@@ -148,6 +192,14 @@ class NoteGenerator(object):
       return "NoteGenerator with freq " + str(self.freq)
 
    ##########################
+   ### Modifier Functions
+   ##########################
+
+   def change_pitch(self, pitchdiff):
+      self.pitch += pitchdiff
+      self.freq = pitch_to_frequency(self.pitch)
+
+   ##########################
    ### Generation Functions
    ##########################
    def generate(self, frames):
@@ -157,7 +209,6 @@ class NoteGenerator(object):
       envaloped_wave = np.multiply(envalope,overtone_wave)
       self.frames += frames
       note_ongoing = True if self.attack_status else (self.decayframes < self.decay_param*kSamplingRate)
-      print self.decayframes < self.decay_param*kSamplingRate
       return (envaloped_wave, note_ongoing)
 
    def generate_overtone(self, frames):
@@ -174,8 +225,6 @@ class NoteGenerator(object):
       maximum_decay = np.ones(len(audioarray))
       env = 1.0 - np.minimum(maximum_decay,((audioarray - self.decay_start_frame)/float(self.decay_param*kSamplingRate))**float(1.0/self.decay_slope)) 
       self.decayframes += len(audioarray)
-      print "made it"
-      print self.decayframes
       return env
 
    def generate_attack_envalope(self,audioarray):
@@ -183,50 +232,47 @@ class NoteGenerator(object):
       env = np.minimum(maximum_attack,(audioarray/float(self.attack_param*kSamplingRate))**float(1.0/self.attack_slope)) 
       return env
 
-def pitch_to_frequency(pitch):
-   Apitch = 69
-   pitchdif = pitch - Apitch
-   return 440*((2)**(1.0/12))**pitchdif
+####################
+## Main Widget     
+####################
+
+majorkeyintervals = [0, 2, 4, 5, 7, 9, 11, 12]
+#minorkeyintervals = [0, 2, 3, 5, 7, 8, 10, 12]
 
 class MainWidget(BaseWidget):
    def __init__(self):
       super(MainWidget, self).__init__()
       self.audio = Audio()
-      print self.audio.get_generators()
 
    def on_key_down(self, keycode, modifiers):
       print 'key-down', keycode, modifiers
-      if keycode[1] == '1':
-         newgen_C = NoteGenerator(60)
-         self.audio.add_generator(newgen_C) 
-         print "Added generator 1"
-         print self.audio.get_generators()
-
-      elif keycode[1] == '2':
-         newgen_E = NoteGenerator(64)
-         self.audio.add_generator(newgen_E)  
-         print "Added generator 2"
-         print self.audio.get_generators()
-            
-      elif keycode[1] == '3':
-         newgen_G = NoteGenerator(67)
-         self.audio.add_generator(newgen_G)  
-         print "Added generator 3"
-         print self.audio.get_generators()
+      try:
+         #Adding more notes within a scale
+         scaledegree = int(keycode[1])
+         if scaledegree in range(1,9): #valid scale degrees -- in base 1
+            self.audio.add_generator(NoteGenerator(self.audio.rootpitch + majorkeyintervals[scaledegree-1]))
+      except:
+         #Changing key
+         if keycode[1] in ["a", "b", "c", "d", "e", "f", "g"]:
+            self.audio.set_key(keycode[1])
+         #Changing wavetype
+         elif keycode[1] == "m":
+            self.audio.wavetype = "sine"
+         elif keycode[1] == ",":
+            self.audio.wavetype = "tri"
+         elif keycode[1] == ".":
+            self.audio.wavetype = "sqr"
+         elif keycode[1] == "/":
+            self.audio.wavetype = "saw"
 
    def on_key_up(self, keycode):
       # Your code here. You can change this whole function as you wish.
       print 'key up', keycode
-      if keycode[1] == '1':
-         newgen_C = NoteGenerator(60)
-         self.audio.release_generator(newgen_C) 
-
-      elif keycode[1] == '2':
-         newgen_E = NoteGenerator(64)
-         self.audio.release_generator(newgen_E)  
-            
-      elif keycode[1] == '3':
-         newgen_G = NoteGenerator(67)
-         self.audio.release_generator(newgen_G)   
+      try:
+         scaledegree = int(keycode[1])
+         if scaledegree in range(1,9): #valid scale degrees -- in base 1
+            self.audio.release_generator(NoteGenerator(self.audio.rootpitch + majorkeyintervals[scaledegree-1]))
+      except:
+         pass
 
 run(MainWidget)
