@@ -33,7 +33,13 @@ class Audio:
    def remove_generator(self, gen):
       for generator in self.generatorlist:
          if generator == gen:
+            self.generatorlist.remove(generator)
+
+   def release_generator(self, gen):
+      for generator in self.generatorlist:
+         if generator == gen:
             generator.set_attack_status(False)
+            generator.set_decay_frame()
 
    def get_generators(self):
       for generator in self.generatorlist:
@@ -52,10 +58,7 @@ class Audio:
          if continueflag == True: 
             output += genoutput
          else:
-            brokengenerators = []
-            brokengenerators.append(generator)
-            for generator in brokengenerators:
-               self.generatorlist.remove(generator)
+            self.remove_generator(generator)
       output = output*self.gain/len(self.generatorlist)
       return (output.tostring(), pyaudio.paContinue)
 
@@ -92,16 +95,17 @@ class Audio:
       self.audio.terminate()
 
 class NoteGenerator(object):
-   def __init__(self,pitch,dur):
+   def __init__(self,pitch):
       self.freq = pitch_to_frequency(pitch)
-      self.dur = dur
       self.frames = 0
 
       self.attack_status = True
-      self.attack_param = dur
+      self.attack_param = 0.01
       self.attack_slope = 2.
-      self.decay_param = .6
+      self.decay_param = .2
       self.decay_slope = 2.
+      self.decayframes = 0
+      self.decay_start_frame = 0 
 
       self.wavetypes = {}
       self.wavetypes["sine"] = [0, 1]
@@ -111,11 +115,14 @@ class NoteGenerator(object):
       self.wavetype = "sine"
 
    def __eq__ (self, other):
-      return (other.freq == self.freq and other.dur == self.dur) 
+      return (other.freq == self.freq) 
    
    ############################
    ### Setter/Getter Functions
    ############################
+
+   def set_decay_frame(self):
+      self.decay_start_frame = self.frames
 
    def set_attack_status(self, attack_status):
       self.attack_status = attack_status
@@ -138,19 +145,19 @@ class NoteGenerator(object):
          self.wavetype = wavetype
 
    def getName(self):
-      return "NoteGenerator with freq " + str(self.freq) + " and dur " + str(self.dur)
+      return "NoteGenerator with freq " + str(self.freq)
 
    ##########################
    ### Generation Functions
    ##########################
-
    def generate(self, frames):
       audioarray = np.arange(self.frames, self.frames + frames)
       overtone_wave = self.generate_overtone(frames)
       envalope = self.generate_attack_envalope(audioarray) if self.attack_status else self.generate_decay_envalope(audioarray)
       envaloped_wave = np.multiply(envalope,overtone_wave)
       self.frames += frames
-      note_ongoing = self.frames < (self.dur+self.decay_param)*kSamplingRate
+      note_ongoing = True if self.attack_status else (self.decayframes < self.decay_param*kSamplingRate)
+      print self.decayframes < self.decay_param*kSamplingRate
       return (envaloped_wave, note_ongoing)
 
    def generate_overtone(self, frames):
@@ -164,11 +171,16 @@ class NoteGenerator(object):
       return finaloutput
 
    def generate_decay_envalope(self, audioarray):
-      env = 1.0 - (audioarray/float(self.decay_param*kSamplingRate))**float(1.0/self.decay_slope) 
+      maximum_decay = np.ones(len(audioarray))
+      env = 1.0 - np.minimum(maximum_decay,((audioarray - self.decay_start_frame)/float(self.decay_param*kSamplingRate))**float(1.0/self.decay_slope)) 
+      self.decayframes += len(audioarray)
+      print "made it"
+      print self.decayframes
       return env
 
    def generate_attack_envalope(self,audioarray):
-      env = (audioarray/float(self.attack_param*kSamplingRate))**float(1.0/self.attack_slope) 
+      maximum_attack = np.ones(len(audioarray))
+      env = np.minimum(maximum_attack,(audioarray/float(self.attack_param*kSamplingRate))**float(1.0/self.attack_slope)) 
       return env
 
 def pitch_to_frequency(pitch):
@@ -185,19 +197,19 @@ class MainWidget(BaseWidget):
    def on_key_down(self, keycode, modifiers):
       print 'key-down', keycode, modifiers
       if keycode[1] == '1':
-         newgen_C = NoteGenerator(60, 5)
+         newgen_C = NoteGenerator(60)
          self.audio.add_generator(newgen_C) 
          print "Added generator 1"
          print self.audio.get_generators()
 
       elif keycode[1] == '2':
-         newgen_E = NoteGenerator(64, 10)
+         newgen_E = NoteGenerator(64)
          self.audio.add_generator(newgen_E)  
          print "Added generator 2"
          print self.audio.get_generators()
             
       elif keycode[1] == '3':
-         newgen_G = NoteGenerator(67, 5)
+         newgen_G = NoteGenerator(67)
          self.audio.add_generator(newgen_G)  
          print "Added generator 3"
          print self.audio.get_generators()
@@ -206,15 +218,15 @@ class MainWidget(BaseWidget):
       # Your code here. You can change this whole function as you wish.
       print 'key up', keycode
       if keycode[1] == '1':
-         newgen_C = NoteGenerator(60, 5)
-         self.audio.remove_generator(newgen_C) 
+         newgen_C = NoteGenerator(60)
+         self.audio.release_generator(newgen_C) 
 
       elif keycode[1] == '2':
-         newgen_E = NoteGenerator(64, 10)
-         self.audio.remove_generator(newgen_E)  
+         newgen_E = NoteGenerator(64)
+         self.audio.release_generator(newgen_E)  
             
       elif keycode[1] == '3':
-         newgen_G = NoteGenerator(67, 5)
-         self.audio.remove_generator(newgen_G)   
+         newgen_G = NoteGenerator(67)
+         self.audio.release_generator(newgen_G)   
 
 run(MainWidget)
