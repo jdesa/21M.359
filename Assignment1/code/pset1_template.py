@@ -62,10 +62,8 @@ class Audio:
          generator.change_pitch(rootpitchdiff)
 
    def set_wavetype(self, wavetype):
-      print "changing wavetype at audio level"
       self.wavetype = wavetype
       for generator in self.generatorlist:
-         print "in for loop"
          generator.set_wavetype(wavetype)
 
    def change_to_minor(self, isminor):
@@ -103,6 +101,7 @@ class Audio:
       output = np.zeros(frame_count, dtype = np.float32)
       for generator in self.generatorlist:
          (genoutput, continueflag) = generator.generate(frame_count)
+         print generator.wavetype
          if continueflag == True: 
             output += genoutput
          else:
@@ -148,9 +147,9 @@ class NoteGenerator(object):
       self.frames = 0
 
       self.attack_status = True
-      self.attack_param = 0.01
+      self.attack_param = 0.05
       self.attack_slope = 2.
-      self.decay_param = .2
+      self.decay_param = 0.05
       self.decay_slope = 2.
       self.decayframes = 0
       self.decay_start_frame = 0 
@@ -190,8 +189,7 @@ class NoteGenerator(object):
    def set_wavetype(self, wavetype):
       #Ensures that the wavetype is valid.
       self.wavetype = wavetype
-      print self.wavetype
-      
+
    def getName(self):
       return "NoteGenerator with freq " + str(self.freq)
 
@@ -220,9 +218,10 @@ class NoteGenerator(object):
       wave_series = self.wavetypes[self.wavetype]
       for i in range(len(wave_series)):
          audioarray = np.arange(self.frames, self.frames + frames)
-         factor = i * self.freq * 2.0 * np.pi / float(kSamplingRate )
+         factor = i * self.freq * 2.0 * np.pi / float(kSamplingRate)
          output = wave_series[i]*np.sin(factor*audioarray, dtype = 'float32')
          finaloutput += output
+      finaloutput = finaloutput/np.sum(wave_series)
       return finaloutput
 
    def generate_decay_envalope(self, audioarray):
@@ -261,7 +260,6 @@ class MainWidget(BaseWidget):
       try:
          #Adding more notes within a scale
          scaledegree = int(keycode[1])
-         print "wavetype is: " + self.audio.wavetype
          if scaledegree in range(1,9): #valid scale degrees -- in base 1
             self.audio.add_generator(NoteGenerator((self.audio.rootpitch + majorkeyintervals[scaledegree-1]), self.audio.wavetype))
       except:
@@ -291,7 +289,6 @@ class MainWidget(BaseWidget):
          scaledegree = int(keycode[1])
          if scaledegree in range(1,9): #valid scale degrees -- in base 1
             self.audio.release_generator(NoteGenerator((self.audio.rootpitch + majorkeyintervals[scaledegree-1]), self.audio.wavetype))
-            print self.audio.wavetype
       except:
          if keycode[1] == '[' or keycode[1] == ']':
             self.keymodifier = ""
