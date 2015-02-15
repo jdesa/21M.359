@@ -9,7 +9,7 @@ sys.path.append('./common')
 from core import *
 
 kSamplingRate = 44100
-keydict = {"c":0, "csharp":1, "dflat": 1, "d": 2, "dsharp":3, "eflat":3, "e":4, "esharp": 5, "fflat":5, "f":6, "fsharp":7, "gflat":7, "g":8, "gsharp":9, "aflat":9, "a": 10, "asharp":11, "bflat":11, "b":12, "bsharp":0}
+keydict = {"cflat": 12, "c":0, "csharp":1, "dflat": 1, "d": 2, "dsharp":3, "eflat":3, "e":4, "esharp": 5, "fflat":5, "f":6, "fsharp":7, "gflat":7, "g":8, "gsharp":9, "aflat":9, "a": 10, "asharp":11, "bflat":11, "b":12, "bsharp":0}
 
 def pitch_to_frequency(pitch):
    Apitch = 69
@@ -51,18 +51,22 @@ class Audio:
       self.rootpitch = newrootpitch
 
    def set_octave(self, newoctave):
-      newrootpitch = (baserootpitch)%60 + 12*(newoctave+1)
+      newrootpitch = (self.rootpitch)%12 + 12*(newoctave+1)
       self.change_generator_pitches(newrootpitch)
       self.rootpitch = newrootpitch
+      self.octave = newoctave
 
    def change_generator_pitches(self, newrootpitch):
-      rootpitchdiff = self.rootpitch - newrootpitch
+      rootpitchdiff = newrootpitch - self.rootpitch
       for generator in self.generatorlist:
          generator.change_pitch(rootpitchdiff)
 
    def set_wavetype(self, wavetype):
+      print "changing wavetype at audio level"
+      self.wavetype = wavetype
       for generator in self.generatorlist:
-         generator.set_wavetype(self, wavetype)
+         print "in for loop"
+         generator.set_wavetype(wavetype)
 
    def change_to_minor(self, isminor):
       self.isminor = isminor
@@ -138,7 +142,7 @@ class Audio:
       self.audio.terminate()
 
 class NoteGenerator(object):
-   def __init__(self,pitch):
+   def __init__(self,pitch,wavetype):
       self.pitch = pitch
       self.freq = pitch_to_frequency(pitch)
       self.frames = 0
@@ -156,7 +160,7 @@ class NoteGenerator(object):
       self.wavetypes["sqr"] = [0, 1, 0, 1/3., 0, 1/5., 0, 1/7., 0, 1/9., 0, 1/11., 0, 1/13., 0, 1/15., 0, 1/17.]
       self.wavetypes["tri"] = [0, 1, 0, 1/9., 0, 1/25., 0, 1/49., 0, 1/81., 0, 1/121.,0,1/169.,0,1/225.,0,1/289.]
       self.wavetypes["saw"] = [0,1, 0,1/2., 0, 1/3., 0, 1/4., 0, 1/5., 0, 1/6., 0, 1/7., 0, 1/8., 0, 1/9.]   
-      self.wavetype = "sine"
+      self.wavetype = wavetype
 
    def __eq__ (self, other):
       return (other.freq == self.freq) 
@@ -185,9 +189,9 @@ class NoteGenerator(object):
 
    def set_wavetype(self, wavetype):
       #Ensures that the wavetype is valid.
-      if wavetype in self.wavetypes: 
-         self.wavetype = wavetype
-
+      self.wavetype = wavetype
+      print self.wavetype
+      
    def getName(self):
       return "NoteGenerator with freq " + str(self.freq)
 
@@ -243,27 +247,42 @@ class MainWidget(BaseWidget):
    def __init__(self):
       super(MainWidget, self).__init__()
       self.audio = Audio()
+      self.keymodifier = ""
 
    def on_key_down(self, keycode, modifiers):
       print 'key-down', keycode, modifiers
+      
+      #Setting changed keys as Sharp or Flat
+      if keycode[1] == '[':
+         self.keymodifier = "flat"
+      elif keycode[1] == ']':
+         self.keymodifier = "sharp"
+      
       try:
          #Adding more notes within a scale
          scaledegree = int(keycode[1])
+         print "wavetype is: " + self.audio.wavetype
          if scaledegree in range(1,9): #valid scale degrees -- in base 1
-            self.audio.add_generator(NoteGenerator(self.audio.rootpitch + majorkeyintervals[scaledegree-1]))
+            self.audio.add_generator(NoteGenerator((self.audio.rootpitch + majorkeyintervals[scaledegree-1]), self.audio.wavetype))
       except:
          #Changing key
          if keycode[1] in ["a", "b", "c", "d", "e", "f", "g"]:
-            self.audio.set_key(keycode[1])
+            self.audio.set_key(keycode[1]+self.keymodifier)
          #Changing wavetype
          elif keycode[1] == "m":
-            self.audio.wavetype = "sine"
+            self.audio.set_wavetype("sine")
          elif keycode[1] == ",":
-            self.audio.wavetype = "tri"
+            self.audio.set_wavetype("tri")
          elif keycode[1] == ".":
-            self.audio.wavetype = "sqr"
+            self.audio.set_wavetype("sqr")
          elif keycode[1] == "/":
-            self.audio.wavetype = "saw"
+            self.audio.set_wavetype("saw")
+         #Changing octave
+         elif keycode[1] == "o":
+            if self.audio.octave - 1 >= 0:
+               self.audio.set_octave(self.audio.octave - 1)
+         elif keycode[1] == "p":
+            self.audio.set_octave(self.audio.octave + 1)
 
    def on_key_up(self, keycode):
       # Your code here. You can change this whole function as you wish.
@@ -271,8 +290,10 @@ class MainWidget(BaseWidget):
       try:
          scaledegree = int(keycode[1])
          if scaledegree in range(1,9): #valid scale degrees -- in base 1
-            self.audio.release_generator(NoteGenerator(self.audio.rootpitch + majorkeyintervals[scaledegree-1]))
+            self.audio.release_generator(NoteGenerator((self.audio.rootpitch + majorkeyintervals[scaledegree-1]), self.audio.wavetype))
+            print self.audio.wavetype
       except:
-         pass
+         if keycode[1] == '[' or keycode[1] == ']':
+            self.keymodifier = ""
 
 run(MainWidget)
