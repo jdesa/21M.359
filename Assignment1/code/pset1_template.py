@@ -74,7 +74,8 @@ class Audio:
    ############################   
    
    def add_generator(self, gen):
-      self.generatorlist.append(gen)
+      if gen not in self.generatorlist:
+         self.generatorlist.append(gen)
 
    def remove_generator(self, gen):
       for generator in self.generatorlist:
@@ -99,14 +100,16 @@ class Audio:
 
    def _callback(self, in_data, frame_count, time_info, status):
       output = np.zeros(frame_count, dtype = np.float32)
+      total_envalope = np.zeros(frame_count, dtype = np.float32)
       for generator in self.generatorlist:
-         (genoutput, continueflag) = generator.generate(frame_count)
+         (genoutput, continueflag, envalope) = generator.generate(frame_count)
          print generator.wavetype
          if continueflag == True: 
             output += genoutput
+            total_envalope += envalope
          else:
             self.remove_generator(generator)
-      output = output*self.gain/len(self.generatorlist)
+      output = output*self.gain
       return (output.tostring(), pyaudio.paContinue)
 
    # return the best output index if found. Otherwise, return None
@@ -147,9 +150,9 @@ class NoteGenerator(object):
       self.frames = 0
 
       self.attack_status = True
-      self.attack_param = 0.05
+      self.attack_param = 0.1
       self.attack_slope = 2.
-      self.decay_param = 0.05
+      self.decay_param = .1
       self.decay_slope = 2.
       self.decayframes = 0
       self.decay_start_frame = 0 
@@ -211,7 +214,7 @@ class NoteGenerator(object):
       envaloped_wave = np.multiply(envalope,overtone_wave)
       self.frames += frames
       note_ongoing = True if self.attack_status else (self.decayframes < self.decay_param*kSamplingRate)
-      return (envaloped_wave, note_ongoing)
+      return (envaloped_wave, note_ongoing, envalope)
 
    def generate_overtone(self, frames):
       finaloutput = np.zeros(frames)
