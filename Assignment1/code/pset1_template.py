@@ -9,12 +9,15 @@ sys.path.append('./common')
 from core import *
 
 kSamplingRate = 44100
+
+#Every note and its 
 keydict = {"cflat": 12, "c":0, "csharp":1, "dflat": 1, "d": 2, "dsharp":3, "eflat":3, "e":4, "esharp": 5, "fflat":5, "f":6, "fsharp":7, "gflat":7, "g":8, "gsharp":9, "aflat":9, "a": 10, "asharp":11, "bflat":11, "b":12, "bsharp":0}
 
 def pitch_to_frequency(pitch):
-   Apitch = 69
-   pitchdif = pitch - Apitch
-   return 440*((2)**(1.0/12))**pitchdif
+   A4_pitch = 69
+   A4_freq = 440
+   pitchdif = pitch - A4_pitch
+   return A4_freq*((2)**(1.0/12))**pitchdif
    
 class Audio:
    def __init__(self):
@@ -35,18 +38,15 @@ class Audio:
 
       self.wavetype = "sine"
       self.octave = 4
-      self.rootpitch = 60 #MiddleC
-      self.isminor = False
-
-      #Dictionary showing the pitch locations of each key
+      self.rootpitch = 60 #Pitch of the root of the current key
 
    ############################
    ###  Extra Functions
    ############################   
 
    def set_key(self, newkey):
-      baserootpitch = keydict[newkey]
-      newrootpitch = baserootpitch + 12*(self.octave + 1)
+      rootpitch = keydict[newkey] 
+      newrootpitch = rootpitch + 12*(self.octave + 1)
       self.change_generator_pitches(newrootpitch)
       self.rootpitch = newrootpitch
 
@@ -66,15 +66,13 @@ class Audio:
       for generator in self.generatorlist:
          generator.set_wavetype(wavetype)
 
-   def change_to_minor(self, isminor):
-      self.isminor = isminor
-
    ############################
    ### Generator Functions
    ############################   
    
    def add_generator(self, gen):
       if gen not in self.generatorlist:
+         #Make sure a new note isn't added while another decays
          self.generatorlist.append(gen)
 
    def remove_generator(self, gen):
@@ -85,8 +83,9 @@ class Audio:
    def release_generator(self, gen):
       for generator in self.generatorlist:
          if generator == gen:
+            #Switch note from attack to decay mode
             generator.set_attack_status(False)
-            generator.set_decay_frame()
+            generator.set_decay_frame() 
 
    def set_gain(self, gain) :
       self.gain = gain
@@ -100,16 +99,21 @@ class Audio:
 
    def _callback(self, in_data, frame_count, time_info, status):
       output = np.zeros(frame_count, dtype = np.float32)
+      ones_array = np.ones(frame_count, dtype = np.float32)
       total_envalope = np.zeros(frame_count, dtype = np.float32)
+      brokengens = []
       for generator in self.generatorlist:
          (genoutput, continueflag, envalope) = generator.generate(frame_count)
-         print generator.wavetype
          if continueflag == True: 
             output += genoutput
             total_envalope += envalope
          else:
-            self.remove_generator(generator)
-      output = output*self.gain
+            brokengens.append(generator)
+            
+      for generator in brokengens:
+         self.remove_generator(generator)
+         
+      output = np.divide(output*self.gain, 1.0+total_envalope)
       return (output.tostring(), pyaudio.paContinue)
 
    # return the best output index if found. Otherwise, return None
@@ -152,11 +156,11 @@ class NoteGenerator(object):
       self.attack_status = True
       self.attack_param = 0.1
       self.attack_slope = 2.
-      self.decay_param = .1
+      self.decay_param = 2.
       self.decay_slope = 2.
-      self.decayframes = 0
       self.decay_start_frame = 0 
-
+      self.decayframes = 0 #Keeps track of number of frames since decay mode began
+      
       self.wavetypes = {}
       self.wavetypes["sine"] = [0, 1]
       self.wavetypes["sqr"] = [0, 1, 0, 1/3., 0, 1/5., 0, 1/7., 0, 1/9., 0, 1/11., 0, 1/13., 0, 1/15., 0, 1/17.]
@@ -213,38 +217,37 @@ class NoteGenerator(object):
       envalope = self.generate_attack_envalope(audioarray) if self.attack_status else self.generate_decay_envalope(audioarray)
       envaloped_wave = np.multiply(envalope,overtone_wave)
       self.frames += frames
-      note_ongoing = True if self.attack_status else (self.decayframes < self.decay_param*kSamplingRate)
+      note_ongoing = True if self.attack_status else (self.decayframes < self.decay_param*kSamplingRate) 
+      #Note is always ongoing while in attack status (while the button is pressed) and ends after the decay time ends.
       return (envaloped_wave, note_ongoing, envalope)
 
    def generate_overtone(self, frames):
-      finaloutput = np.zeros(frames)
+      overtone_output = np.zeros(frames)
       wave_series = self.wavetypes[self.wavetype]
-      for i in range(len(wave_series)):
+      for harmonic in range(len(wave_series)):
          audioarray = np.arange(self.frames, self.frames + frames)
-         factor = i * self.freq * 2.0 * np.pi / float(kSamplingRate)
-         output = wave_series[i]*np.sin(factor*audioarray, dtype = 'float32')
-         finaloutput += output
-      finaloutput = finaloutput/np.sum(wave_series)
-      return finaloutput
+         factor = harmonic * self.freq * 2.0 * np.pi / float(kSamplingRate)
+         output = wave_series[harmonic]*np.sin(factor*audioarray, dtype = 'float32')
+         overtone_output += output
+      overtone_output = overtone_output/np.sum(wave_series)
+      return overtone_output
 
    def generate_decay_envalope(self, audioarray):
       maximum_decay = np.ones(len(audioarray))
-      env = 1.0 - np.minimum(maximum_decay,((audioarray - self.decay_start_frame)/float(self.decay_param*kSamplingRate))**float(1.0/self.decay_slope)) 
+      envalope = 1.0 - np.minimum(maximum_decay,((audioarray - self.decay_start_frame)/float(self.decay_param*kSamplingRate))**float(1.0/self.decay_slope)) 
       self.decayframes += len(audioarray)
-      return env
+      return envalope
 
    def generate_attack_envalope(self,audioarray):
       maximum_attack = np.ones(len(audioarray))
-      env = np.minimum(maximum_attack,(audioarray/float(self.attack_param*kSamplingRate))**float(1.0/self.attack_slope)) 
-      return env
+      envalope = np.minimum(maximum_attack,(audioarray/float(self.attack_param*kSamplingRate))**float(1.0/self.attack_slope)) 
+      return envalope
 
 ####################
 ## Main Widget     
 ####################
 
 majorkeyintervals = [0, 2, 4, 5, 7, 9, 11, 12]
-#minorkeyintervals = [0, 2, 3, 5, 7, 8, 10, 12]
-
 class MainWidget(BaseWidget):
    def __init__(self):
       super(MainWidget, self).__init__()
