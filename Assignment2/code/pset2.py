@@ -31,7 +31,11 @@ class MainWidget(BaseWidget) :
 
       elif keycode[1] == "enter":
          self.audio.add_generator(self.wave)
-         print "Wave"
+
+      elif keycode[1] == "shift":
+         print "Halp"
+         self.wave.reset()
+
 
    def on_key_up(self, keycode):
       pass

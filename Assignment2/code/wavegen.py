@@ -63,8 +63,7 @@ class WaveFileGenerator(object):
       self.playing = not self.playing
 
    def reset(self):
-   # TODO: implement for pset
-      pass
+      self.reader.set_pos(0)
 
 # let's make a class that holds a small amount of wave data in memory
 # and can play that like a sample, almost like a note.
