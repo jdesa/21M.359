@@ -116,31 +116,36 @@ class AudioRegion(object):
 class SongRegions(object):
    def __init__(self, textfilepath, wavefilepath):
       super(SongRegions, self).__init__()
-      self.regions = []
-      self.filepath = filepath
+      self.textfilepath = textfilepath
+      self.wavefilepath = wavefilepath
       self.reader = WaveReader(wavefilepath)
-
-      f = open(self.textfilepath)
-      counter = 0
-      for line in iter(f):
-         counter = counter+1 #Keeping track for the name
-          
-          words = line.split()
-          starttime = words[0] 
-          endtime = words[1]
-          
-          start_frame = starttime*kSamplingRate
-          end_frame = endtime*kSamplingRate
-          num_frames = end_frame - start_frame
-          
-          print (start_frame, num_frames)
-          self.regions.append(AudioRegion(counter, start_frame, num_frames))
-      f.close()
-
+      self.regions = self.parse_text_file(textfilepath)
 
    def make_snippits(self):
       waveregions = {}
       for audioregion in self.regions:
-         waveregions[audioregion.name] = WaveSnippet(self.reader, audioregion.start_frame, audioregion.num_frames)
+         waveregions[str(audioregion.name)] = WaveSnippet(self.reader, audioregion.start_frame, audioregion.num_frames)
+      print "waveregions: " + str(waveregions)
       return waveregions
+
+   def parse_text_file(self, textfilepath):
+      counter = 0
+      regions = []
+      f = open(textfilepath)
+      for line in iter(f):
+         counter = counter+1 #Keeping track for the name
+          
+         words = line.split()
+         starttime = int(np.floor(float(words[0]))) 
+         duration = int(np.floor(float(words[2])))
+
+         start_frame = starttime*kSamplingRate
+         num_frames = duration*kSamplingRate
+
+         print "StartFrame: " + str(start_frame)
+         print "Numframes: " + str(num_frames)
+         regions.append(AudioRegion(counter, start_frame, num_frames))
+      return regions
+
+
 

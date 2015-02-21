@@ -12,19 +12,25 @@ class MainWidget(BaseWidget) :
       super(MainWidget, self).__init__()
       self.audio = Audio()
       self.wave = WaveFileGenerator("HideAndSeek16.wav")
-      self.songregions = SongRegions("hideandseek16_regions.txt")
-      self.wavesnippets = self.songregions.make_snippets()
+      self.songregions = SongRegions("hideandseek16_regions.txt", "HideAndSeek16.wav")
+      self.wavesnippets = self.songregions.make_snippits()
 
    def on_key_down(self, keycode, modifiers):
       snippet_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
 
+      print keycode[1] 
+
       if keycode[1] in snippet_list:
-         if keycode[1] in self.wavesnippets.keys:
-            self.audio.add_generator(WaveFileGenerator("HideAndSeek16.wav").make_generator()))
+         print "in snippet_list"
+         print self.wavesnippets.keys()
+         if keycode[1] in self.wavesnippets.keys():
+            print "in wavesnippet keys"
+            self.audio.add_generator(self.wavesnippets[keycode[1]].make_generator())
+            print self.audio.generators
 
       if keycode[1] == "up":
          new_gain = self.audio.get_gain() * 1.1
-         self.audio.set_gain( new_gain )
+         self.audio.set_gain(new_gain)
          print self.audio.get_gain()
 
       elif keycode[1] == "down":
