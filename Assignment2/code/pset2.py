@@ -10,11 +10,17 @@ from wavegen import *
 class MainWidget(BaseWidget) :
    def __init__(self):
       super(MainWidget, self).__init__()
-
       self.audio = Audio()
       self.wave = WaveFileGenerator("HideAndSeek16.wav")
+      self.songregions = SongRegions("hideandseek16_regions.txt")
+      self.wavesnippets = self.songregions.make_snippets()
 
    def on_key_down(self, keycode, modifiers):
+      snippet_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+
+      if keycode[1] in snippet_list:
+         if keycode[1] in self.wavesnippets.keys:
+            self.audio.add_generator(WaveFileGenerator("HideAndSeek16.wav").make_generator()))
 
       if keycode[1] == "up":
          new_gain = self.audio.get_gain() * 1.1

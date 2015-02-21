@@ -106,20 +106,41 @@ class WaveSnippet(object):
       
 
 class AudioRegion(object):
-   def __init__(self):
+   def __init__(self, name, startframe, numframes):
       super(AudioRegion, self).__init__()
-      # TODO finish implementation
+      self.name = name
+      self.start_frame = startframe
+      self.num_frames = numframes #Same as length
 
 
 class SongRegions(object):
-   def __init__(self, filepath):
+   def __init__(self, textfilepath, wavefilepath):
       super(SongRegions, self).__init__()
-
       self.regions = []
-      # TODO - finish implementation
+      self.filepath = filepath
+      self.reader = WaveReader(wavefilepath)
+
+      f = open(self.textfilepath)
+      counter = 0
+      for line in iter(f):
+         counter = counter+1 #Keeping track for the name
+          
+          words = line.split()
+          starttime = words[0] 
+          endtime = words[1]
+          
+          start_frame = starttime*kSamplingRate
+          end_frame = endtime*kSamplingRate
+          num_frames = end_frame - start_frame
+          
+          print (start_frame, num_frames)
+          self.regions.append(AudioRegion(counter, start_frame, num_frames))
+      f.close()
 
 
-def make_snippits(regions):
-   pass
-   # TODO - should return a dictionary of snippets
+   def make_snippits(self):
+      waveregions = {}
+      for audioregion in self.regions:
+         waveregions[audioregion.name] = WaveSnippet(self.reader, audioregion.start_frame, audioregion.num_frames)
+      return waveregions
 
