@@ -15,18 +15,21 @@ class MainWidget(BaseWidget) :
       self.songregions = SongRegions("hideandseek16_regions.txt", "HideAndSeek16.wav")
       self.wavesnippets = self.songregions.make_snippits()
       self.snippet_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+      self.generatordict = {}
 
    def on_key_down(self, keycode, modifiers):
+      print keycode[1]
 
-      print keycode[1] 
+      if keycode[1] == '\\':
+         for generator in self.audio.generators:
+            generator.invert_loop()
+            print "help"
 
       if keycode[1] in self.snippet_list:
          print "in snippet_list"
          print self.wavesnippets.keys()
          if keycode[1] in self.wavesnippets.keys():
-            print "in wavesnippet keys"
-            self.audio.add_generator(self.wavesnippets[keycode[1]].make_generator())
-            print self.audio.generators
+            self.audio.add_generator(self.wavesnippets[keycode[1]].make_generator(True, 1.0))
 
       if keycode[1] == "up":
          new_gain = self.audio.get_gain() * 1.1

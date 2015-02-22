@@ -4,7 +4,6 @@ import numpy as np
 import wave
 from audio import kSamplingRate
 
-
 # now, lets make a class that can hold samples in memory so that it
 # can access them quickly and repeatedly. But, first, we just typed a bunch of code
 # to read wave data and convert to mono-float. Let's abstract that and reuse it:
@@ -84,12 +83,12 @@ class WaveSnippet(object):
    # have a single source of data held in a data, but multiple play objects
    # (ie Generators) for playing the data
    class Generator(object):
-      def __init__(self, data) :
+      def __init__(self, data, loop_on, speed = 1.0) :
          super(WaveSnippet.Generator, self).__init__()
-         self.speed = 2.0
+         self.speed = speed
          self.data = data
          self.interpdata = self.shift_data()
-         self.end = len(self.data)
+         self.end = len(self.interpdata)
          self.loop_on = True
          self.playing = True
          self.frame  = 0
@@ -103,7 +102,17 @@ class WaveSnippet(object):
       def generate(self, num_frames):
          start = self.frame * 2
          end = (self.frame + num_frames) * 2
-         output = self.interpdata[start : end]
+         output = self.data[start : end]
+         print "loop on is: " + str(self.loop_on)
+         print ("self.end " + str(self.end))
+         print ("end is " + str(end))
+         if (self.end < end + num_frames and self.loop_on):
+            print "in loop case"
+            self.frame = 0
+            start = self.frame * 2
+            end = (self.frame + num_frames) * 2
+            output = self.interpdata[start : end]
+         
          self.frame += num_frames
          return (output, len(output) == num_frames * 2)
       
@@ -113,11 +122,14 @@ class WaveSnippet(object):
 
       def start_generator(self):
          self.playing = True
+
+      def invert_loop(self):
+         self.loop_on = not self.loop_on
          
    # to play this audio, we need a helper function to create
    # the generator (this is known as a Factory Function)
-   def make_generator(self):
-      self.generator = WaveSnippet.Generator(self.data)
+   def make_generator(self, loop_on, speed = 1.0):
+      self.generator = WaveSnippet.Generator(self.data, loop_on, speed=1.0)
       return self.generator
 
 class AudioRegion(object):
