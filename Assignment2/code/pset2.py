@@ -14,13 +14,13 @@ class MainWidget(BaseWidget) :
       self.wave = WaveFileGenerator("HideAndSeek16.wav")
       self.songregions = SongRegions("hideandseek16_regions.txt", "HideAndSeek16.wav")
       self.wavesnippets = self.songregions.make_snippits()
+      self.snippet_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
 
    def on_key_down(self, keycode, modifiers):
-      snippet_list = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
 
       print keycode[1] 
 
-      if keycode[1] in snippet_list:
+      if keycode[1] in self.snippet_list:
          print "in snippet_list"
          print self.wavesnippets.keys()
          if keycode[1] in self.wavesnippets.keys():
@@ -45,11 +45,12 @@ class MainWidget(BaseWidget) :
          self.audio.add_generator(self.wave)
 
       elif keycode[1] == "shift":
-         print "Halp"
          self.wave.reset()
 
 
    def on_key_up(self, keycode):
-      pass
+      if keycode[1] in self.snippet_list:
+         if keycode[1] in self.wavesnippets.keys():
+            self.wavesnippets[keycode[1]].generator.stop_generator()
 
 run(MainWidget)

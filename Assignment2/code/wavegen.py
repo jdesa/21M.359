@@ -64,6 +64,7 @@ class WaveFileGenerator(object):
 
    def reset(self):
       self.reader.set_pos(0)
+      self.playing = False
 
 # let's make a class that holds a small amount of wave data in memory
 # and can play that like a sample, almost like a note.
@@ -74,6 +75,8 @@ class WaveSnippet(object):
       # get a local copy of the audio data from WaveReader
       wave_reader.set_pos(start_frame)
       self.data = wave_reader.read(num_frames)
+      self.generator = None
+      print self.generator
 
    # the WaveSnippet itself should not play the note. It is not a generator.
    # Just a place to hold data. We create a generator with a reference to the
@@ -83,27 +86,39 @@ class WaveSnippet(object):
    class Generator(object):
       def __init__(self, data) :
          super(WaveSnippet.Generator, self).__init__()
+         self.speed = 2.0
          self.data = data
-         self.frame = 0
-         self.end = len (self.data)
+         self.interpdata = self.shift_data()
+         self.end = len(self.data)
+         self.loop_on = True
+         self.playing = True
+         self.frame  = 0
 
-      def generate(self, num_frames) :
-         # grab correct chunk of data
+      def shift_data(self):
+         original_x = np.arange(0, len(self.data), 1.0)
+         shifted_x = np.arange(0, len(self.data)*self.speed, self.speed)
+         interpdata = np.interp(shifted_x, original_x, self.data)
+         return interpdata
+
+      def generate(self, num_frames):
          start = self.frame * 2
          end = (self.frame + num_frames) * 2
-         output = self.data[start : end]
-
-         # advance current-frame
+         output = self.interpdata[start : end]
          self.frame += num_frames
-
-         # return
          return (output, len(output) == num_frames * 2)
+      
+      def stop_generator(self):
+         self.loop_on = False
+         self.playing = False
 
+      def start_generator(self):
+         self.playing = True
+         
    # to play this audio, we need a helper function to create
    # the generator (this is known as a Factory Function)
-   def make_generator(self) :
-      return WaveSnippet.Generator(self.data)
-      
+   def make_generator(self):
+      self.generator = WaveSnippet.Generator(self.data)
+      return self.generator
 
 class AudioRegion(object):
    def __init__(self, name, startframe, numframes):
@@ -136,16 +151,13 @@ class SongRegions(object):
          counter = counter+1 #Keeping track for the name
           
          words = line.split()
-         starttime = int(np.floor(float(words[0]))) 
-         duration = int(np.floor(float(words[2])))
+         starttime = float(words[0])
+         duration = float(words[2])
 
-         start_frame = starttime*kSamplingRate
-         num_frames = duration*kSamplingRate
+         start_frame = int(starttime*kSamplingRate)
+         num_frames = int(duration*kSamplingRate)
 
          print "StartFrame: " + str(start_frame)
          print "Numframes: " + str(num_frames)
          regions.append(AudioRegion(counter, start_frame, num_frames))
       return regions
-
-
-
