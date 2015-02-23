@@ -50,10 +50,12 @@ class WaveFileGenerator(object):
       super(WaveFileGenerator, self).__init__()
       self.playing = True
       self.reader = WaveReader(filepath)
+      self.frames = 0
 
    def generate(self, num_frames) :
       if self.playing:
          output = self.reader.read(num_frames)
+         self.frames += num_frames
       else:
          output = np.zeros(num_frames*self.reader.channels)
       return (output, len(output) == num_frames * self.reader.channels)
@@ -63,6 +65,7 @@ class WaveFileGenerator(object):
 
    def reset(self):
       self.reader.set_pos(0)
+      self.frames = 0
       self.playing = False
 
 # let's make a class that holds a small amount of wave data in memory
@@ -75,7 +78,6 @@ class WaveSnippet(object):
       wave_reader.set_pos(start_frame)
       self.data = wave_reader.read(num_frames)
       self.generator = None
-      print self.generator
 
    # the WaveSnippet itself should not play the note. It is not a generator.
    # Just a place to hold data. We create a generator with a reference to the
@@ -85,36 +87,32 @@ class WaveSnippet(object):
    class Generator(object):
       def __init__(self, data, loop_on, speed = 1.0) :
          super(WaveSnippet.Generator, self).__init__()
-         self.speed = speed
+         self.speed = 1.0
          self.data = data
          self.interpdata = self.shift_data()
-         self.end = len(self.interpdata)
          self.loop_on = True
          self.playing = True
          self.frame  = 0
+         self.end = int(len(self.data)/self.speed)
 
       def shift_data(self):
-         original_x = np.arange(0, len(self.data), 1.0)
-         shifted_x = np.arange(0, len(self.data)*self.speed, self.speed)
+         original_x = np.arange(0, len(self.data), 1.0, dtype = np.float32)
+         shifted_x = np.arange(0, len(self.data)*self.speed, self.speed, dtype=np.float32)
          interpdata = np.interp(shifted_x, original_x, self.data)
+         self.end = int(len(self.data)/self.speed)
          return interpdata
 
       def generate(self, num_frames):
          start = self.frame * 2
          end = (self.frame + num_frames) * 2
-         output = self.data[start : end]
-         print "loop on is: " + str(self.loop_on)
-         print ("self.end " + str(self.end))
-         print ("end is " + str(end))
+         output = self.interpdata[start : end]
          if (self.end < end + num_frames and self.loop_on):
-            print "in loop case"
+            output = output*self.envelope(output)
             self.frame = 0
             start = self.frame * 2
             end = (self.frame + num_frames) * 2
-            output = self.interpdata[start : end]
-         
          self.frame += num_frames
-         return (output, len(output) == num_frames * 2)
+         return (output, end <= self.end)
       
       def stop_generator(self):
          self.loop_on = False
@@ -123,8 +121,18 @@ class WaveSnippet(object):
       def start_generator(self):
          self.playing = True
 
-      def invert_loop(self):
-         self.loop_on = not self.loop_on
+      def inc_speed(self):
+         self.speed = self.speed*2.0**(1.0/12.0)
+         self.interpdata = self.shift_data()
+
+      def dec_speed(self):
+         self.speed = self.speed/(2.0**(1.0/12.0))
+         self.interpdata = self.shift_data()
+
+      def envelope(self, audioarray):
+         envelope = np.clip(1.0 - audioarray/(float(3.0*kSamplingRate)**float(1.0/2.0)), 0.0, 1.0) 
+         print "envelope is: " + str(envelope)
+         return envelope
          
    # to play this audio, we need a helper function to create
    # the generator (this is known as a Factory Function)
@@ -169,7 +177,6 @@ class SongRegions(object):
          start_frame = int(starttime*kSamplingRate)
          num_frames = int(duration*kSamplingRate)
 
-         print "StartFrame: " + str(start_frame)
-         print "Numframes: " + str(num_frames)
          regions.append(AudioRegion(counter, start_frame, num_frames))
       return regions
+
