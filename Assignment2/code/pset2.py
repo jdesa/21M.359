@@ -8,6 +8,10 @@ from note import *
 from wavegen import *
 
 
+# I collaborated with Nick Benson in class and with CK Ong, Kevin King, and Polly Li on general concepts and debugging help outside of class.
+# Credit to Kevin King for the idea of speeding up and slowing down the entirety of self.data instead of in buffered chunks (which is more complicated)
+# Youtube Link: 
+
 class MainWidget(BaseWidget) :
    def __init__(self):
       super(MainWidget, self).__init__()
@@ -50,30 +54,30 @@ class MainWidget(BaseWidget) :
 
       elif keycode[1] == "[":
          for generator in self.snippets.keys():
-            generator.dec_speed()
+            self.snippets[generator].dec_speed()
 
       elif keycode[1] == "]":
          for generator in self.snippets.keys():
-            generator.inc_speed()
+            self.snippets[generator].inc_speed()
 
       elif keycode[1] == "'":
-         print "here! keydown"
          self.new_region_start = self.wave.frames
-         print "new_region_start: " + str(self.new_region_start)
+         print "started new region " + str(self.new_region_start)
+
+      elif keycode[1] == "backspace":
+          for generator in self.snippets.keys():
+            self.snippets[generator].stop_generator()
 
    def on_key_up(self, keycode):
       if keycode[1] in self.wavesnippets.keys():
-         self.snippets.pop(keycode[1], None)
-         self.wavesnippets[keycode[1]].generator.stop_generator()
+            self.snippets.pop(keycode[1], None)
+            self.wavesnippets[keycode[1]].generator.stop_generator()
 
       if keycode[1] == "'":
-         print "here! keyup"
          self.new_region_end = self.wave.frames
-         print "new region end " + str(self.new_region_end)
-         for number in [item for item in self.snippet_list if item not in self.wavesnippets.keys()]:
-               print number
-               self.wavesnippets[number] = WaveSnippet(self.wave.reader, self.new_region_start, self.new_region_end)
+         print 'new_region_end' + str(self.wave.frames)
+         for number in [snippet_name for snippet_name in self.snippet_list if snippet_name not in self.wavesnippets.keys()]:
+               self.wavesnippets[number] = WaveSnippet(WaveReader("HideAndSeek16.wav"), self.new_region_start, self.new_region_end - self.new_region_start)
                break
-         
 
 run(MainWidget)

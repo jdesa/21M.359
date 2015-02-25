@@ -106,13 +106,20 @@ class WaveSnippet(object):
          start = self.frame * 2
          end = (self.frame + num_frames) * 2
          output = self.interpdata[start : end]
-         if (self.end < end + num_frames and self.loop_on):
-            output = output*self.envelope(output)
-            self.frame = 0
-            start = self.frame * 2
-            end = (self.frame + num_frames) * 2
+         
+         if (self.end < end + num_frames):
+            output = output*self.decay_envelope(len(output))
+            if self.loop_on:
+               self.frame = 0
+               end = 0
+
+         continuecondition = True if end <= self.end else False
+
+         if not self.playing:
+            output = output*0;
+         
          self.frame += num_frames
-         return (output, end <= self.end)
+         return (output, continuecondition)
       
       def stop_generator(self):
          self.loop_on = False
@@ -129,9 +136,14 @@ class WaveSnippet(object):
          self.speed = self.speed/(2.0**(1.0/12.0))
          self.interpdata = self.shift_data()
 
-      def envelope(self, audioarray):
-         envelope = np.clip(1.0 - audioarray/(float(3.0*kSamplingRate)**float(1.0/2.0)), 0.0, 1.0) 
-         print "envelope is: " + str(envelope)
+      def decay_envelope(self, num_frames):
+         audioarray = np.arange(0, num_frames)
+         envelope = np.clip(1.0 - audioarray/(float(num_frames)**float(1.0/2.0)), 0.0, 1.0) 
+         return envelope
+
+      def attack_envelope(self, num_frames):
+         audioarray = np.arange(0, num_frames)
+         envelope = np.clip(audioarray/(float(num_frames)**float(1.0/2.0)), 0.0, 1.0) 
          return envelope
          
    # to play this audio, we need a helper function to create
@@ -160,7 +172,6 @@ class SongRegions(object):
       waveregions = {}
       for audioregion in self.regions:
          waveregions[str(audioregion.name)] = WaveSnippet(self.reader, audioregion.start_frame, audioregion.num_frames)
-      print "waveregions: " + str(waveregions)
       return waveregions
 
    def parse_text_file(self, textfilepath):
