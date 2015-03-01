@@ -93,32 +93,64 @@ class WaveSnippet(object):
          self.loop_on = True
          self.playing = True
          self.frame  = 0
-         self.end = int(len(self.data)/self.speed)
+         self.end = len(self.data)/self.speed
 
       def shift_data(self):
+         '''
+         #Original Interp Method
          original_x = np.arange(0, len(self.data), 1.0, dtype = np.float32)
-         shifted_x = np.arange(0, len(self.data)*self.speed, self.speed, dtype=np.float32)
+         shifted_x = np.arange(0, len(self.data), self.speed, dtype=np.float32)
          interpdata = np.interp(shifted_x, original_x, self.data)
-         self.end = int(len(self.data)/self.speed)
+         self.end = len(self.data)/self.speed
          return interpdata
+         '''
+         
+         #Code for Correct Shifting Model:         
+         interpdata = np.arange(0, len(self.data), self.speed, dtype=np.float32)
+
+         original_x_left = np.arange(0, len(self.data)/2.0, 1.0, dtype = np.float32)
+         shifted_x_left = np.arange(0, len(self.data)/2.0, self.speed, dtype=np.float32)
+         interpdata_left = np.interp(shifted_x_left, original_x_left, self.data[0::2])
+
+         original_x_right = np.arange(0, len(self.data)/2.0, 1.0, dtype = np.float32)
+         shifted_x_right = np.arange(0, len(self.data)/2.0, self.speed, dtype=np.float32)
+         interpdata_right = np.interp(shifted_x_right, original_x_right, self.data[1::2])
+
+         interpdata[0::2] = interpdata_left
+         #Dealing with edge cases relating to the length of the interpolated right channel (whether interpdata is of even or odd length)
+         if len(interpdata[1::2]) == len(interpdata_right):
+            interpdata[1::2] = interpdata_right
+         elif (len(interpdata[1::2]) == len(interpdata_right)+1):
+            interpdata_right.append(interpdata_right[-1]) #Add a copy of the very last sample
+            interpdata[1::2] = interpdata_right
+         elif len(interpdata[1::2]) == len(interpdata_right)-1:
+            interpdata[1::2] = interpdata_right[0:len(interpdata_right)-1]
+
+         self.end = len(self.data)/self.speed
+         return interpdata         
 
       def generate(self, num_frames):
-         start = self.frame * 2
+         start = (self.frame * 2)
          end = (self.frame + num_frames) * 2
          output = self.interpdata[start : end]
+         self.frame += num_frames
          
-         if (self.end < end + num_frames):
-            output = output*self.decay_envelope(len(output))
+         #Looping case
+         if (end > self.end):
             if self.loop_on:
-               self.frame = 0
+               wrapframes = num_frames - (end-self.end) 
+               #Use remaining frames and a subsection of frames from the start
+               output = np.concatenate([output[start:self.end],output[0:wrapframes]])
+               self.frame = wrapframes
                end = 0
+            else:
+               output = output*self.decay_envelope(len(output))
 
          continuecondition = True if end <= self.end else False
-
-         if not self.playing:
-            output = output*0;
          
-         self.frame += num_frames
+         if not self.playing:
+            output = output*0
+
          return (output, continuecondition)
       
       def stop_generator(self):
