@@ -3,7 +3,8 @@
 import sys
 sys.path.append('common')
 from core import *
-from jacqui_pset1 import *
+from audio import *
+from note import *
 
 from kivy.core.window import Window
 from kivy.clock import Clock as kivyClock
@@ -38,7 +39,7 @@ class MainWidget1(BaseWidget) :
       print "help!"
       octave = touch.pos[0] % 4 + 3
       interval = touch.pos[1] % 8
-      self.audio.add_generator(NoteGenerator((octave*12+interval), self.audio.wavetype))
+      self.audio.add_generator(NoteGenerator(5*12+interval, .5, 2.0, type = 'sine'))
 
    def on_touch_up(self, touch) :
       print 'up', touch.pos
@@ -82,7 +83,7 @@ class MainWidget2(BaseWidget) :
 
       octave = touch.pos[0] % 8
       interval = touch.pos[1] % 8
-      self.audio.add_generator(NoteGenerator((octave*12+interval), self.audio.wavetype))
+      self.audio.add_generator(NoteGenerator(octave*12+interval, .5, 2.0, type = 'sine'))
 
 
    def on_update(self):
@@ -212,7 +213,7 @@ class MainWidget4(BaseWidget) :
       
       octave = touch.pos[0] % 8
       interval = touch.pos[1] % 8
-      gen = NoteGenerator((octave*12+interval), self.audio.wavetype)
+      gen = NoteGenerator((octave*12+interval))
       self.audio.add_generator(gen)
       self.bubblegendict[bubble] = gen
 
@@ -247,20 +248,51 @@ class MainWidget5(BaseWidget) :
       self.scaledegrees = ['1','2','3','4','5','6','7','8','9']
       self.majorkeyintervals = [0, 2, 4, 5, 7, 9, 11, 12]
 
+   #Checks if a single bubble is in a state of collision with other bubbles
+   def bubble_in_collision(self,bubble1):
+      x1 = bubble1.pos[0]
+      y1 = bubble1.pos[1]
+      r1 = bubble1.radius
+      for bubble2 in self.bubble_list:
+         if bubble1 != bubble2:
+            x2 = bubble2.pos[0]
+            y2 = bubble2.pos[1]
+            r2 = bubble2.radius
+            distancebetween = np.sqrt((x1-x2)**2 + (y1-y2)**2) 
+            combinedradius = r1+r2
+            if distancebetween < combinedradius:
+               return True
+      return False
 
    def on_touch_down(self, touch) :
-
-      # initial settings
       p = touch.pos
       r = randint(10,60)
       c = (random(), random(), random())
       bubble = PhysBubble(p, r, c)
-      self.canvas.add(bubble)
-      self.bubbles.append(bubble)
-      octave = touch.pos[0] % 8
-      interval = touch.pos[1] % 8
-      self.audio.add_generator(NoteGenerator((octave*12+interval), self.audio.wavetype))
-
+      #Check to make sure no other bubbles are in the current spawning point
+      if not self.bubble_in_collision(bubble):
+         self.canvas.add(bubble)
+         self.bubbles.append(bubble)
+               
+   def bubblevbubble_collision(self, bubble_list):
+      dt = kivyClock.frametime
+      for bubble1 in bubble_list:
+         x1 = bubble1.pos[0]
+         y1 = bubble1.pos[1]
+         r1 = bubble1.radius
+         for bubble2 in bubble_list:
+            if bubble1 != bubble2:
+               x2 = bubble2.pos[0]
+               y2 = bubble2.pos[1]
+               r2 = bubble2.radius
+               distancebetween = np.sqrt((x1-x2)**2 + (y1-y2)**2) 
+               combinedradius = r1+r2
+               if distancebetween < combinedradius:
+                  bubble1.collision = True
+                  bubble2.collision = True
+                  bubble1.vel[0] = -bubble1.vel[0] * damping
+                  bubble1.vel[1] = -bubble1.vel[1] * damping
+                  bubble1.pos = bubble1.pos + bubble1.vel*dt
 
    def on_update(self):
       self.info.text = str(Window.mouse_pos)
@@ -268,18 +300,34 @@ class MainWidget5(BaseWidget) :
       self.info.text += '\nbubbles:%d' % len(self.bubbles)
 
       dt = kivyClock.frametime
-      kill_list = [b for b in self.bubbles if b.on_update(dt) == False]
-      for b in kill_list:
-         self.bubbles.remove(b)
-         self.canvas.remove(b)
+      
+      #Making the kill_list and bubble v bubble collision update
+      self.bubble_list = []
+      kill_list = []
+      for bubble in self.bubbles:
+         update = bubble.on_update(dt)
+         if update[1] == False:
+            kill_list.append(bubble)
+         else:
+            self.bubble_list.append((update[0]))
+            if bubble.collision == True:
+               bubble.collision = False
+               interval = int(bubble.pos[0] / 100)
+               gen =  NoteGenerator(60+interval, .5, .5, type = 'sine')
+               self.audio.add_generator(gen)
+      for bubble in kill_list:
+         self.bubbles.remove(bubble)
+         self.canvas.remove(bubble)
 
-
+      self.bubblevbubble_collision(self.bubble_list)
 
 gravity = np.array((0, -1800))
 
 
 damping = 0.9
 width = 800
+maxnumcollisions = 8
+
 
 class PhysBubble(InstructionGroup):
    def __init__(self, pos, r, color):
@@ -292,16 +340,23 @@ class PhysBubble(InstructionGroup):
       self.color = Color(*color)
       self.circle = Ellipse(segments = 40)
 
+      self.numcollisions = 0
+      self.collision = False
+
       self.add(self.color)
       self.add(self.circle)
 
       self.on_update(0)
+
 
    def _set_pos(self, pos, radius):
       self.circle.pos = pos[0] - radius, pos[1] - radius
       self.circle.size = radius * 2, radius * 2
 
    def on_update(self, dt):
+      if maxnumcollisions == self.numcollisions:
+         return (self, False)
+
       # integrate accel to get vel
       self.vel += gravity * dt
 
@@ -312,22 +367,26 @@ class PhysBubble(InstructionGroup):
       if self.pos[1] - self.radius < 0:
          self.vel[1] = -self.vel[1] * damping
          self.pos[1] = self.radius
+         self.numcollisions += 1
+         self.collision = True
 
-      #collision with wall sides
-
+      #collision with left wall
       if self.pos[0] - self.radius < 0:
-         print "trying"
          self.vel[0] = -self.vel[0] * damping
          self.pos[0] = self.radius
+         self.numcollisions += 1
+         self.collision = True
 
-      elif self.pos[0] + self.radius > 800:
+      #collision with right wall
+      elif self.pos[0] + self.radius > width:
          self.vel[0] = -self.vel[0] * damping
-         self.pos[0] = 800 - self.radius
+         self.pos[0] = width - self.radius
+         self.numcollisions += 1
+         self.collision = True
 
       self._set_pos(self.pos, self.radius)
 
-      return True
-
+      return (self, True)
 
 ##############################################################################
 

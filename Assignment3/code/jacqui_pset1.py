@@ -154,13 +154,13 @@ class NoteGenerator(object):
       self.frames = 0
 
       self.attack_status = True
-      self.attack_param = 0.1
+      self.attack_param = 2.0
       self.attack_slope = 2.
-      self.decay_param = .1
-      self.decay_slope = 2.
+      self.decay_param = 2.0
+      self.decay_slope = 2.0
       self.decay_start_frame = 0 
       self.decayframes = 0 #Keeps track of number of frames since decay mode began
-      
+
       self.wavetypes = {}
       self.wavetypes["sine"] = [0, 1]
       self.wavetypes["sqr"] = [0, 1, 0, 1/3., 0, 1/5., 0, 1/7., 0, 1/9., 0, 1/11., 0, 1/13., 0, 1/15., 0, 1/17.]
