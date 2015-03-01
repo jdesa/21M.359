@@ -404,17 +404,25 @@ class Flower(InstructionGroup):
       w = radius
       h = radius / num_petals**.5
 
+      self.petal_rotations = []
       d_theta =  360. / num_petals
+
+      majorkeyintervals = [0, 2, 4, 5, 7, 9, 11]
+
+      self.petals = {}
       for n in range(num_petals):
+         self.add(Color(np.random.rand(),np.random.rand(), np.random.rand(),))
          self.add(Rotate(angle = d_theta))
+         self.petals[d_theta*n] = NoteGenerator(60+majorkeyintervals[n%len(majorkeyintervals)] + n/len(majorkeyintervals) * 12, .5, .5, type = 'sine')
          self.add(Translate(radius, 0))
          self.add(Ellipse(pos = (-w/2, -h/2), size = (w, h)))
-         self.add(Translate(-radius, 0))
+         self.add(Translate(-radius, 0)) 
 
       self.add(PopMatrix())
 
-   def on_update(self, dt):
-      self.rotate.angle += 1.0
+   def on_update(self, dt, rps):
+      print "flower angle" + str(self.rotate.angle)
+      self.rotate.angle += rps #Rotations/second. #Todo: make this rotations per second
 
 # keeping track of a canvas instruction
 class MainWidget6(BaseWidget) :
@@ -425,13 +433,15 @@ class MainWidget6(BaseWidget) :
 
       self.flowers = []
 
-      flower = Flower((200, 300), 6, 80, (0, 1, 0))
+      #flower = Flower((200, 300), 6, 80, (0, 1, 0))
+      #self.canvas.add(flower)
+      #self.flowers.append(flower)
+
+      flower = Flower((500, 400), 10, 100, (np.random.rand(),np.random.rand(), np.random.rand(), .1))
       self.canvas.add(flower)
       self.flowers.append(flower)
 
-      flower = Flower((500, 400), 10, 100, (1, 0.7, 0.7))
-      self.canvas.add(flower)
-      self.flowers.append(flower)
+      self.audio = Audio()
 
       self.on_update()
 
@@ -444,7 +454,15 @@ class MainWidget6(BaseWidget) :
       self.info.text += '\nfps:%d' % kivyClock.get_fps()
       
       for flower in self.flowers:
-         flower.on_update(0)
+         flower.on_update(0, 1.0)
+         for petal in flower.petals:
+            if flower.rotate.angle % 360 == petal % 360:
+               print "made it"
+               self.audio.add_generator(flower.petals[petal]) 
+               #not sure why this isn't continuing
+               print flower.petals[petal].toString()
+               
+
 
 
 run(MainWidget6)

@@ -30,7 +30,7 @@ class NoteGenerator(object):
 
    def __init__(self, pitch, gain, duration, type = 'sine') :
       super(NoteGenerator, self).__init__()
-
+      self.pitch = pitch
       self.freq = midi_to_frequency(pitch)
       self.gain = float(gain)
       self.dur = float(duration)
@@ -98,6 +98,9 @@ class NoteGenerator(object):
       stereo[1::2] = output # right channel
       return (stereo, keep_going)
 
+   def toString(self):
+      return "Pitch: " + str(self.pitch) + " Duration: " + str(self.dur)
+
 
 def additive_synth(time, harmonics) :
    signal = harmonics[0] * np.sin( time )
@@ -105,5 +108,7 @@ def additive_synth(time, harmonics) :
       if w != 0:
          signal += w * np.sin( time * (h+2))
    return signal
+
+
 
 
