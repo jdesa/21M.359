@@ -394,11 +394,12 @@ class PhysBubble(InstructionGroup):
 class Flower(InstructionGroup):
    def __init__(self, pos, num_petals, radius, color):
       super(Flower, self).__init__()
-      
       self.add(Color(*color))
-
       self.add(PushMatrix())
       self.add(Translate(*pos))
+      
+      self.rotate = Rotate(angle = 0)
+      self.add(self.rotate)
 
       w = radius
       h = radius / num_petals**.5
@@ -413,8 +414,7 @@ class Flower(InstructionGroup):
       self.add(PopMatrix())
 
    def on_update(self, dt):
-      pass
-
+      self.rotate.angle += 1.0
 
 # keeping track of a canvas instruction
 class MainWidget6(BaseWidget) :
@@ -433,12 +433,18 @@ class MainWidget6(BaseWidget) :
       self.canvas.add(flower)
       self.flowers.append(flower)
 
+      self.on_update()
+
+
    def on_touch_down(self, touch) :
       pass
 
    def on_update(self):
       self.info.text = str(Window.mouse_pos)
       self.info.text += '\nfps:%d' % kivyClock.get_fps()
+      
+      for flower in self.flowers:
+         flower.on_update(0)
 
 
-run(MainWidget5)
+run(MainWidget6)
