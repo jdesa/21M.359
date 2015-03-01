@@ -11,6 +11,8 @@ from kivy.clock import Clock as kivyClock
 from kivy.uix.label import Label
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Ellipse, Rectangle
+from kivy.uix.button import Button
+from kivy.uix.togglebutton import ToggleButton
 from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
 
 from random import random, randint
@@ -171,20 +173,41 @@ class MainWidget5(BaseWidget) :
          y1 = bubble1.pos[1]
          r1 = bubble1.radius
          for bubble2 in bubble_list:
-            if bubble1 != bubble2:
+            if bubble1 != bubble2 and not bubble1.collisionchecked and not bubble2.collisionchecked:
+               
                x2 = bubble2.pos[0]
                y2 = bubble2.pos[1]
                r2 = bubble2.radius
                distancebetween = np.sqrt((x1-x2)**2 + (y1-y2)**2) 
                combinedradius = r1+r2
+               
                if distancebetween < combinedradius:
                   
                   bubble1.collision = True
                   bubble2.collision = True
 
-                  bubble1.vel[0] = -bubble1.vel[0] * damping #* int((bubble1.radius + bubble2.radius)/float(bubble1.radius))
-                  bubble1.vel[1] = -bubble1.vel[1] * damping #*int((bubble1.radius + bubble2.radius)/float(bubble1.radius))
+                  m1 = float(bubble1.radius**2)
+                  m2 = float(bubble2.radius**2)
+                  m3 = float(m1 + m2)
+                  
+                  p1 = bubble1.vel*m1
+                  p2 = bubble2.vel*m2
+                  p3 = p1 + p2
+
+                  v1 = p3/(m1/m3)
+                  v2 = p3/(m2/m3)
+
+                  bubble1.vel[0] = -1*np.sign(bubble1.vel[0]) * v1[0] * damping #* int((bubble1.radius + bubble2.radius)/float(bubble1.radius))                  
+                  bubble1.vel[1] = -1*np.sign(bubble1.vel[1]) * v1[1] * damping #* int((bubble1.radius + bubble2.radius)/float(bubble1.radius))                  
+
+                  bubble2.vel[0] = -1*np.sign(bubble2.vel[0]) * v2[0] * damping #* int((bubble1.radius + bubble2.radius)/float(bubble1.radius))
+                  bubble2.vel[1] = -1*np.sign(bubble2.vel[1]) * v2[1] * damping #* int((bubble1.radius + bubble2.radius)/float(bubble1.radius))
+
                   bubble1.pos = bubble1.pos + bubble1.vel*dt
+                  bubble2.pos = bubble2.pos + bubble2.vel*dt
+
+                  bubble1.collisionchecked = True
+                  bubble2.collisionchecked = True
 
    def on_update(self):
       self.info.text = str(Window.mouse_pos)
@@ -196,6 +219,7 @@ class MainWidget5(BaseWidget) :
       #Making the kill_list and bubble v bubble collision update
       self.bubble_list = []
       kill_list = []
+      
       for bubble in self.bubbles:
          update = bubble.on_update(dt)
          if update[1] == False:
@@ -207,6 +231,7 @@ class MainWidget5(BaseWidget) :
                interval = int(bubble.pos[0] / 100)
                gen =  NoteGenerator(60+interval, .5, .5, type = 'sine')
                self.audio.add_generator(gen)
+      
       for bubble in kill_list:
          self.bubbles.remove(bubble)
          self.canvas.remove(bubble)
@@ -226,6 +251,7 @@ class PhysBubble(InstructionGroup):
    def __init__(self, pos, r, color):
       super(PhysBubble, self).__init__()
 
+      self.collisionchecked = False
       self.radius = r
       self.pos = np.array(pos, dtype=np.float64)
       self.vel = np.array((randint(-300, 300), randint(-100, 100)))
@@ -283,116 +309,30 @@ class PhysBubble(InstructionGroup):
          self.numcollisions += 1
          self.collision = True
 
+      self.collisionchecked = False
+
+
       self._set_pos(self.pos, self.radius)
 
       return (self, True)
 
 ##############################################################################
 
-
-class Flower(InstructionGroup):
-   def __init__(self, pos, num_petals, radius, color):
-      super(Flower, self).__init__()
-      self.add(Color(*color))
-      self.add(PushMatrix())
-      self.add(Translate(*pos))
-      self.pos = pos
-
-      #Todo: Fix Color!
-      self.add(Color(np.random.rand(),np.random.rand(), np.random.rand(),1.0))
-      self.centerbutton = Ellipse(segments = 40)
-      self.centerbutton.pos = (400, 400)
-      self.centerbutton.size = (20, 20)
-      self.add(self.centerbutton)
-
-      self.rotate = Rotate(angle = 0)
-      self.add(self.rotate)
-      
-
-      self.petal_rotations = []
-      d_theta =  360. / num_petals
-      self.num_petals = num_petals
-      self.radius = radius
-
-
-      majorkeyintervals = [0, 2, 4, 5, 7, 9, 11, 12]
-      self.petals = {}
-      for n in range(num_petals):
-         self.draw_colored_petal(.5)
-         self.petals[d_theta*n] = NoteGenerator(60+majorkeyintervals[n%len(majorkeyintervals)] + n/len(majorkeyintervals) * 12, .5, .5, type = 'sine')
-      
-      self.add(PopMatrix())
-   
-   def draw_colored_petal(self, transparency):
-      print "draw_colored_petal"
-      w = self.radius
-      h = self.radius / self.num_petals**.5
-      d_theta =  360. / self.num_petals
-
-      self.add(Color(np.random.rand(),np.random.rand(), np.random.rand(),transparency))
-      self.add(Rotate(angle = d_theta))
-      self.add(Translate(self.radius, 0))
-      self.add(Ellipse(pos = (-w/2, -h/2), size = (w, h)))
-      self.add(Translate(-self.radius, 0)) 
-
-   def on_update(self, dt, rps):
-      print "flower angle" + str(self.rotate.angle)
-      self.rotate.angle += rps #Rotations/second. #Todo: make this rotations per second
-
-# keeping track of a canvas instruction
-class MainWidget6(BaseWidget) :
-   def __init__(self):
-      super(MainWidget6, self).__init__()
-      self.info = Label(text = "text", pos=(0, 500), text_size=(100,100), valign='top')
-      self.add_widget(self.info)
-
-      self.flowers = []
-
-      #flower = Flower((200, 300), 6, 80, (0, 1, 0))
-      #self.canvas.add(flower)
-      #self.flowers.append(flower)
-
-      flower = Flower((500, 400), 10, 100, (np.random.rand(),np.random.rand(), np.random.rand(), .1))
-      self.canvas.add(flower)
-      self.flowers.append(flower)
-
-      self.audio = Audio()
-
-      self.on_update()
-
-
-   def on_touch_down(self, touch) :
-      pass
-
-   def on_update(self):
-      self.info.text = str(Window.mouse_pos)
-      self.info.text += '\nfps:%d' % kivyClock.get_fps()
-      
-      for flower in self.flowers:
-         flower.on_update(0, 1.0)
-         self.canvas.add(Translate(*flower.pos))
-         for petal in flower.petals:
-            if (flower.rotate.angle % 360) == (petal % 360):
-               print "made it"
-               self.audio.add_generator(flower.petals[petal]) 
-               #not sure why this isn't continuing
-               print flower.petals[petal].toString()
-               flower.draw_colored_petal(1.0)
-               
-               
-
 ##############################################################################
 
-
 class Flower(InstructionGroup):
    def __init__(self, pos, num_petals, radius, color):
       super(Flower, self).__init__()
       self.add(Color(*color))
       self.add(PushMatrix())
       self.add(Translate(*pos))
-      
+
       self.rotate = Rotate(angle = 0)
       self.add(self.rotate)
+
+      self.button = Button(pos =(pos[0] - 50, pos[1] - 50), font_size=14, background_color = (0,0,0,0), border=(30, 30, 30, 30))
+
+      self.active = True
 
       w = radius
       h = radius / num_petals**.5
@@ -400,12 +340,15 @@ class Flower(InstructionGroup):
       self.petal_rotations = []
       d_theta =  360. / num_petals
 
-      majorkeyintervals = [0, 2, 4, 5, 7, 9, 11]
+      color = Color(np.random.rand(),np.random.rand(), np.random.rand(),.1)
+      self.add(Ellipse(pos = (-50, -50), size = (100, 100)))
+
+      majorkeyintervals = [0, 2, 4, 5, 7, 9, 11, 12]
 
       self.petals = {}
       for n in range(num_petals):
          angle = d_theta*n
-         note = NoteGenerator(60+majorkeyintervals[n%len(majorkeyintervals)] + n/len(majorkeyintervals) * 12, .5, .5, type = 'sine')
+         note = [60+majorkeyintervals[n%len(majorkeyintervals)] + n/len(majorkeyintervals) * 12, .5, .5, 'sine']
          color = Color(np.random.rand(),np.random.rand(), np.random.rand(),.1)
          self.add(color)
          self.add(Rotate(angle = d_theta))
@@ -419,8 +362,12 @@ class Flower(InstructionGroup):
       self.add(PopMatrix())
 
    def on_update(self, dt, rps):
-      print "flower angle" + str(self.rotate.angle)
-      self.rotate.angle += rps #Rotations/second. #Todo: make this rotations per second
+      if self.active:
+         self.rotate.angle += rps #Rotations/second. #Todo: make this rotations per second
+
+
+def hello(instance):
+   print "hello"
 
 # keeping track of a canvas instruction
 class MainWidget6(BaseWidget) :
@@ -431,21 +378,35 @@ class MainWidget6(BaseWidget) :
 
       self.flowers = []
 
-      #flower = Flower((200, 300), 6, 80, (0, 1, 0))
-      #self.canvas.add(flower)
-      #self.flowers.append(flower)
+      color = (np.random.rand(),np.random.rand(), np.random.rand(), 1)
+      flower = Flower((200, 300), 8, 100, color)
+      flower.button.bind(on_press = lambda x: self.pause_generator(flower))
+      self.add_widget(flower.button)
 
-      flower = Flower((500, 400), 10, 100, (np.random.rand(),np.random.rand(), np.random.rand(), .1))
       self.canvas.add(flower)
       self.flowers.append(flower)
 
-      self.audio = Audio()
+      self.add_flower_mode = False
 
+      self.audio = Audio()
       self.on_update()
 
 
-   def on_touch_down(self, touch) :
-      pass
+   def on_key_down(self, keycode, modifiers):
+      if keycode[1] == "enter":
+         self.add_flower_mode = True
+   
+   def on_key_up(self, keycode):
+      if keycode[1] == "enter":
+         self.add_flower_mode = False 
+
+
+   def pause_generator(self, flower):
+      print "here!"
+      flower.active = not flower.active
+      if not flower.active:
+         for petal_angle in flower.petals:
+            self.audio.remove_generator(NoteGenerator(flower.petals[petal_angle][0]))
 
    def on_update(self):
       self.info.text = str(Window.mouse_pos)
@@ -455,10 +416,18 @@ class MainWidget6(BaseWidget) :
          flower.on_update(0, 1.0)
          for petal in flower.petals:
             if flower.rotate.angle % 360 == petal % 360:
-               print "made it"
-               self.audio.add_generator(flower.petals[petal][0]) 
-               #not sure why this isn't continuing
-               flower.petals[petal][1].s = 1.0
+               if flower.active:
+                  print "help!"
+                  notecontents = flower.petals[petal][0]
+                  note = NoteGenerator(notecontents[0], notecontents[1], notecontents[2], notecontents[3])
+                  self.audio.add_generator(note) 
+                  for generator in self.audio.generators:
+                     print generator.toString()
+                  flower.petals[petal][1].s = 1.0
+
+
+
+ 
 
 ######################################################################################################
 
