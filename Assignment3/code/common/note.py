@@ -48,6 +48,10 @@ class NoteGenerator(object):
 
       self.harmonics = NoteGenerator.harmonics[type]
 
+   def __eq__(self, other):
+      return self.pitch == other.pitch and self.gain == other.gain and self.dur == other.dur
+      
+
    # turn off the note immediately
    def off(self) :
       self.off_now = True

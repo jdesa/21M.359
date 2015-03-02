@@ -43,7 +43,11 @@ class Audio(object):
       self.audio.terminate()
 
    def add_generator(self, gen) :
-      if gen not in self.generators: # add this for safety
+      found = False
+      for generator in self.generators:
+         if gen == generator:
+            found = True
+      if not found:
          self.generators.append(gen)
 
    def remove_generator(self, gen) :
