@@ -423,10 +423,7 @@ class MainWidget6(BaseWidget) :
                   self.audio.add_generator(note) 
                   for generator in self.audio.generators:
                      print generator.toString()
-                  flower.petals[petal][1].s = 1.0
-
-
-
+                  flower.petals[petal][1].a = 1.0 if flower.petals[petal][1].a == 0.1 else 0.1
  
 
 ######################################################################################################
