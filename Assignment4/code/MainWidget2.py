@@ -1,19 +1,3 @@
-#lecture4.py
-import sys
-sys.path.append('./common')
-from core import *
-from audio import *
-from synth import *
-from clock_lec import *
-from modifier import *
-
-from kivy.uix.label import Label
-
-
-# Let's use fluid synth to play notes
-kKeys = '1234567890'
-kPitches = (36,60,62,64,65,67,69,71,72,74,76)
-
 # Finally, let's test the Metronome class
 class MainWidget4(BaseWidget) :
    def __init__(self):
@@ -52,19 +36,14 @@ class MainWidget4(BaseWidget) :
 
       if keycode[1] == 'up':
          print "up"
-         self.cond.set_bpm(self.cond.bpm+10)
-         print self.cond.bpm
+         self.cond.bpm += 10
 
       if keycode[1] == 'down':
          print "down"
-         self.cond.set_bpm(self.cond.bpm-10)
+         self.cond.bpm -= 10
 
    def on_update(self) :
       # scheduler gets poked every frame
       self.sched.on_update()
       self.label.text = self.cond.now_str()
-
-
-# pass in which MainWidget to run as a command-line arg
-run(eval('MainWidget4'))
 

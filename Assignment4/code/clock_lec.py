@@ -41,13 +41,14 @@ class Conductor(object):
       super(Conductor, self).__init__()
       self.bpm = bpm
       self.clock = clock
+      self.tick_offset = 0
 
    def get_time(self) :
       return self.clock.get_time()
 
    def get_tick(self) :
       sec = self.get_time()
-      tick = sec * (self.bpm / 60.) * kTicksPerQuarter
+      tick = sec * (self.bpm / 60.) * kTicksPerQuarter - self.tick_offset
       return int(tick)
 
    def now_str(self):
@@ -58,7 +59,12 @@ class Conductor(object):
       return txt
 
    def set_bpm(self, bpm):
+      print "prev tick: " + str(self.get_tick())
+      self.tick_offset = self.get_time()* (bpm / 60.) * kTicksPerQuarter - self.get_tick()
+      print "tick offset: " + str(self.tick_offset)
       self.bpm = bpm
+      print "new tick: " + str(self.get_tick())
+
 
    def get_bpm(self):
       return self.bpm
@@ -149,5 +155,5 @@ class Metronome(object):
       self._post_at(next_beat)
 
    def _noteoff(self, tick, pitch):
-      self.synth.noteoff(self.channel, pitch)
+      self.synth.noteoff(self.channel, pitch)      
 
