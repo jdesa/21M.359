@@ -33,6 +33,7 @@ class MainWidget4(BaseWidget) :
       self.metro_on = False
 
       self.arpeg = Arpeggiator(self.sched, self.synth, 1, [60, 64, 67, 72, 76])
+      self.arpeg_on = False
 
       # and text to display our status      
       self.label = Label(text = 'foo', pos = (50, 400), size = (150, 200), valign='top',
@@ -74,7 +75,19 @@ class MainWidget4(BaseWidget) :
          self.cond.change_tempo_marking(1)
 
       if keycode[1] == 'a':
-         self.arpeg.start()
+         if self.arpeg_on == False:
+            self.arpeg.start()
+            self.arpeg_on = True
+         else:
+            print "in stop"
+            self.arpeg.stop()
+            self.arpeg_on = False
+      if keycode[1] == '[':
+         self.arpeg.set_direction('down')
+      elif keycode[1] == ']':
+         self.arpeg.set_direction('up')
+      elif keycode[1] == '\\':
+         self.arpeg.set_direction('updown')
 
    def on_update(self) :
       # scheduler gets poked every frame

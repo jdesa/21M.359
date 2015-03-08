@@ -15,22 +15,24 @@ class Arpeggiator(object):
       self.pulse = pulse
       self.note_len_ratio = 1
       self.pitch = self.notes[0]
-      self.direction = 1
+      self.going_up = True
+      self.updown = False
  
    def start(self):
       if self.started == False:
          self.started = True
 
          print 'Metronome start'
-         self.synth.program(self.channel, 128, 0)
-         #self.synth.program(self.channel, 0, 19)
+         #self.synth.program(self.channel, 128, 0)
+         self.synth.program(self.channel, 0, 19)
 
          now = self.sched.cond.get_tick()
          next_beat = now - (now % self.beat_len) + self.beat_len
          self._post_at(next_beat)
  
    def stop(self):
-      self.notes = []
+      self.started = False
+      self.synth.noteoff(self.channel, self.pitch)    
    
    # notes is a list of MIDI pitch values. For example [60 64 67 72]
    def set_notes(self, notes):
@@ -49,10 +51,13 @@ class Arpeggiator(object):
  
    # direction is either 'up', 'down', or 'updown'
    def set_direction(self, direction):
-      if direction == 'up':
-         self.direction = 1
-      if direction == 'down':
-         self.direction = -1 
+      if direction == "updown":
+         self.updown = not self.updown
+      else:
+         if direction == 'up':
+            self.going_up = True
+         elif direction == "down":
+            self.going_up = False
    
    def _post_at(self, tick):
       print "post at"
@@ -60,14 +65,25 @@ class Arpeggiator(object):
          self.sched.post_at_tick(tick, self._noteon)
 
    def get_next_pitch(self):
-      print "in get next pitch"
       for i in range(len(self.notes)):
          if self.notes[i] == self.pitch:
-            print "self.notes is: " + str(self.notes)
-            print "old pitch: " + str(self.pitch)
-            print "next pitch: " + str(self.notes[(i + self.direction) % len(self.notes)])
-            self.pitch = self.notes[(i + self.direction) % len(self.notes)]
-            print "new pitch: " + str(self.pitch)
+            
+            if self.updown == True:
+               if i == len(self.notes) - 1 or i == 0:
+                  self.going_up = not self.going_up
+                  print "i is: " + str(i)
+                  print "are we going up?: " + str(self.going_up)
+                  #reverse direction
+            
+            if self.going_up:
+               self.pitch = self.notes[(i + 1) % len(self.notes)]
+               print "going up pitch: " + str(self.pitch)
+               break
+            else:
+               self.pitch = self.notes[(i - 1)]
+               print "going down pitch: " + str(self.pitch)
+               break
+
             break
 
    def _noteon(self, tick, ignore):
