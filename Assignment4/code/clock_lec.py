@@ -42,29 +42,65 @@ class Conductor(object):
       self.bpm = bpm
       self.clock = clock
       self.tick_offset = 0
-
-   def get_time(self) :
+      self.tempo_dict = tempo_dict = {
+         'grave': 40,
+         'largo': 50,
+         'lento': 52,
+         'larghetto': 60,
+         'andantino': 66,
+         'adagio': 70,
+         'lento': 52,
+         'andante': 80,
+         'moderato':110,
+         'allegretto': 100,
+         'vivace': 126,
+         'allegro':150,
+         'presto':180,
+         'prestissimo':200
+      }
+      self.tempo_dict_keys = sorted(self.tempo_dict.items(), key=lambda x:x[1])
+      print self.tempo_dict_keys
+      self.tempo_index = 0
+  
+   def get_time(self):
       return self.clock.get_time()
 
-   def get_tick(self) :
+   def get_tick(self):
       sec = self.get_time()
       tick = sec * (self.bpm / 60.) * kTicksPerQuarter - self.tick_offset
       return int(tick)
+
+   def change_tempo_marking(self, index):
+      tempo_marking = self.get_tempo_marking()
+      print tempo_marking
+      next_tempo = tempo_marking[2] + index
+      next_bpm = self.tempo_dict_keys[(tempo_marking[2] + index) % len(self.tempo_dict_keys)][1]
+      self.set_bpm(next_bpm)
+
+   def get_tempo_marking(self):
+      for tempo in range(len(self.tempo_dict_keys)):
+         if self.bpm < 40:
+            tempo_marking = [self.tempo_dict_keys[0][0], self.tempo_dict_keys[0][1], 0]
+         elif self.bpm > 200:
+            tempo_marking = [self.tempo_dict_keys[-1][0], self.tempo_dict_keys[-1][1], -1]
+         elif self.bpm <= self.tempo_dict_keys[tempo][1] and self.bpm >=  self.tempo_dict_keys[tempo - 1 % len(self.tempo_dict_keys)][1]:
+            tempo_marking = [self.tempo_dict_keys[tempo][0], self.tempo_dict_keys[tempo][1], tempo]
+            break
+         else:
+            tempo_marking = ["wat", 0, 0]
+      return tempo_marking
 
    def now_str(self):
       time = self.get_time()
       tick = self.get_tick()
       beat = float(tick) / kTicksPerQuarter
-      txt = "time:%.2f\ntick:%d\nbeat:%.2f" % (time, tick, beat)
+      tempo_marking = self.get_tempo_marking()[0]
+      txt = "time: %.2f\ntick: %d\nbeat: %.2f\ntempo: %s\n" % (time, tick, beat, tempo_marking)
       return txt
 
    def set_bpm(self, bpm):
-      print "prev tick: " + str(self.get_tick())
       self.tick_offset = self.get_time()* (bpm / 60.) * kTicksPerQuarter - self.get_tick()
-      print "tick offset: " + str(self.tick_offset)
       self.bpm = bpm
-      print "new tick: " + str(self.get_tick())
-
 
    def get_bpm(self):
       return self.bpm
@@ -83,10 +119,10 @@ class Scheduler(object):
    # properly
    def post_at_tick(self, tick, func, arg = None) :
       now = self.cond.get_tick()
-
       if tick <= now:
          func(tick, arg)
       else:
+         print "in post_at_tick"
          self.commands.append(Command(tick, func, arg))
          self.commands.sort(key = lambda x: x.tick)
 
@@ -101,6 +137,13 @@ class Scheduler(object):
             command.execute()
          else:
             break
+
+   def remove(self, command):
+      self.commands.remove(command)
+
+   def stop(self):
+      for command in self.commands:
+         self.commands.remove(command)
 
  
 class Command(object):
@@ -126,34 +169,44 @@ class Metronome(object):
       super(Metronome, self).__init__()
       self.sched = sched
       self.synth = synth
-
       self.beat_len = kTicksPerQuarter
       self.pitch = 60
       self.channel = 0
+      self.started = False
 
    def start(self):
-      print 'Metronome start'
-      self.synth.program(self.channel, 128, 0)
-      #self.synth.program(self.channel, 0, 19)
+      if self.started == False:
+         self.started = True
 
-      now = self.sched.cond.get_tick()
-      next_beat = now - (now % self.beat_len) + self.beat_len
-      self._post_at(next_beat)
+         print 'Metronome start'
+         self.synth.program(self.channel, 128, 0)
+         #self.synth.program(self.channel, 0, 19)
+
+         now = self.sched.cond.get_tick()
+         next_beat = now - (now % self.beat_len) + self.beat_len
+         self._post_at(next_beat)
 
    def _post_at(self, tick):
-      self.sched.post_at_tick(tick, self._noteon)
+      print "post at"
+      if self.started == True:
+         self.sched.post_at_tick(tick, self._noteon)
 
    def _noteon(self, tick, ignore):
-      # play the note right now:
-      self.synth.noteon(self.channel, self.pitch, 100)
-      
-      # post the note off for later:
-      self.sched.post_at_tick(tick + self.beat_len/2, self._noteoff, self.pitch)
+      if self.started == True:
+         # play the note right now:
+         self.synth.noteon(self.channel, self.pitch, 100)
+         
+         # post the note off for later:
+         self.sched.post_at_tick(tick + self.beat_len/2, self._noteoff, self.pitch)
 
-      # schedule the next note on one beat later
-      next_beat = tick + self.beat_len
-      self._post_at(next_beat)
+         # schedule the next note on one beat later
+         next_beat = tick + self.beat_len
+         self._post_at(next_beat)
 
    def _noteoff(self, tick, pitch):
-      self.synth.noteoff(self.channel, pitch)      
+      self.synth.noteoff(self.channel, pitch)    
+
+   def stop(self):
+      self.sched.stop()
+      self.started = False  
 

@@ -30,12 +30,12 @@ class MainWidget4(BaseWidget) :
 
       # create the metronome:
       self.metro = Metronome(self.sched, self.synth)
+      self.metro_on = False
 
       # and text to display our status      
       self.label = Label(text = 'foo', pos = (50, 400), size = (150, 200), valign='top',
                          font_size='20sp')
       self.add_widget(self.label)
-
 
    def on_key_down(self, keycode, modifiers):
       if keycode[0] >= ord('1') and keycode[0] <= ord('9'):
@@ -48,16 +48,28 @@ class MainWidget4(BaseWidget) :
          self.clock.toggle()
 
       if keycode[1] == 'm':
-         self.metro.start()
+         if self.metro_on == False:
+            self.metro.start()
+            self.metro_on = True
+         else:
+            print "in stop"
+            self.metro.stop()
+            self.metro_on = False
 
       if keycode[1] == 'up':
          print "up"
-         self.cond.set_bpm(self.cond.bpm+10)
+         self.cond.set_bpm(self.cond.bpm+1)
          print self.cond.bpm
 
       if keycode[1] == 'down':
          print "down"
-         self.cond.set_bpm(self.cond.bpm-10)
+         self.cond.set_bpm(self.cond.bpm-1)
+
+      if keycode[1] == 'left':
+         self.cond.change_tempo_marking(-1)
+
+      if keycode[1] == 'right':
+         self.cond.change_tempo_marking(1)
 
    def on_update(self) :
       # scheduler gets poked every frame
