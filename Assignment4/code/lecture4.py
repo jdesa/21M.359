@@ -6,7 +6,7 @@ from audio import *
 from synth import *
 from clock_lec import *
 from modifier import *
-
+from arpeg import *
 from kivy.uix.label import Label
 
 
@@ -31,6 +31,8 @@ class MainWidget4(BaseWidget) :
       # create the metronome:
       self.metro = Metronome(self.sched, self.synth)
       self.metro_on = False
+
+      self.arpeg = Arpeggiator(self.sched, self.synth, 1, [60, 64, 67, 72, 76])
 
       # and text to display our status      
       self.label = Label(text = 'foo', pos = (50, 400), size = (150, 200), valign='top',
@@ -70,6 +72,9 @@ class MainWidget4(BaseWidget) :
 
       if keycode[1] == 'right':
          self.cond.change_tempo_marking(1)
+
+      if keycode[1] == 'a':
+         self.arpeg.start()
 
    def on_update(self) :
       # scheduler gets poked every frame
