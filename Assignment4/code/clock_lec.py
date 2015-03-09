@@ -59,7 +59,6 @@ class Conductor(object):
          'prestissimo':200
       }
       self.tempo_dict_keys = sorted(self.tempo_dict.items(), key=lambda x:x[1])
-      print self.tempo_dict_keys
       self.tempo_index = 0
   
    def get_time(self):
@@ -72,7 +71,6 @@ class Conductor(object):
 
    def change_tempo_marking(self, index):
       tempo_marking = self.get_tempo_marking()
-      print tempo_marking
       next_tempo = tempo_marking[2] + index
       next_bpm = self.tempo_dict_keys[(tempo_marking[2] + index) % len(self.tempo_dict_keys)][1]
       self.set_bpm(next_bpm)
@@ -108,7 +106,7 @@ class Conductor(object):
 # next, we build a scheduler that knows how to execute code 
 # at a future time - or more importantly, at a future tick.
 class Scheduler(object):
-   def __init__(self, cond) :
+   def __init__(self, cond):
       super(Scheduler, self).__init__()
       self.cond = cond
       self.commands = []
@@ -122,9 +120,10 @@ class Scheduler(object):
       if tick <= now:
          func(tick, arg)
       else:
-         print "in post_at_tick"
-         self.commands.append(Command(tick, func, arg))
+         newcommand = Command(tick, func, arg)
+         self.commands.append(newcommand)
          self.commands.sort(key = lambda x: x.tick)
+         return newcommand
 
    # on_update should be called as often as possible.
    # the only trick here is to make sure we remove the command BEFORE
@@ -139,12 +138,11 @@ class Scheduler(object):
             break
 
    def remove(self, command):
-      self.commands.remove(command)
-
-   def stop(self):
-      for command in self.commands:
+      if command in self.commands:
          self.commands.remove(command)
-
+         print "removed command"
+      else:
+         print "didn't find command to remove"
  
 class Command(object):
    def __init__(self, tick, func, arg):
@@ -173,12 +171,11 @@ class Metronome(object):
       self.pitch = 60
       self.channel = 0
       self.started = False
+      self.command = None
 
    def start(self):
       if self.started == False:
          self.started = True
-
-         print 'Metronome start'
          self.synth.program(self.channel, 128, 0)
          #self.synth.program(self.channel, 0, 19)
 
@@ -187,9 +184,8 @@ class Metronome(object):
          self._post_at(next_beat)
 
    def _post_at(self, tick):
-      print "post at"
       if self.started == True:
-         self.sched.post_at_tick(tick, self._noteon)
+         self.command = self.sched.post_at_tick(tick, self._noteon)
 
    def _noteon(self, tick, ignore):
       if self.started == True:
@@ -207,7 +203,8 @@ class Metronome(object):
       self.synth.noteoff(self.channel, pitch)    
 
    def stop(self):
-      self.sched.stop()
+      print str(self.command)
+      self.sched.remove(self.command)
       self.started = False  
 
 

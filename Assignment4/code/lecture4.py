@@ -32,19 +32,33 @@ class MainWidget4(BaseWidget) :
       self.metro = Metronome(self.sched, self.synth)
       self.metro_on = False
 
-      self.arpeg = Arpeggiator(self.sched, self.synth, 1, [60, 64, 67, 72, 76])
+      self.arpeg = Arpeggiator(self.sched, self.synth, 4.0, [60, 64, 67, 72, 76])
       self.arpeg_on = False
+      
+      self.record_arpeg_on = False
+      self.recorded_arpeg_notes = []
+
+      self.set_arpeg_pulse = False
+      self.arpeg_pulse = ''
+      self.valid_pulses = ['1', '2', '3', '4', '8', '16']
+
 
       # and text to display our status      
       self.label = Label(text = 'foo', pos = (50, 400), size = (150, 200), valign='top',
                          font_size='20sp')
       self.add_widget(self.label)
 
+
    def on_key_down(self, keycode, modifiers):
       if keycode[0] >= ord('1') and keycode[0] <= ord('9'):
          pitch = kPitches[ keycode[0] - ord('1') ]
-         print pitch
-         self.synth.noteon(0, pitch, 100)
+         if self.record_arpeg_on:
+            self.recorded_arpeg_notes.append(pitch)
+         elif self.set_arpeg_pulse:
+            self.arpeg_pulse += keycode[1]
+            print self.arpeg_pulse
+         else:
+            self.synth.noteon(0, pitch, 100)
 
       if keycode[1] == 'c':
          print "c"
@@ -87,7 +101,34 @@ class MainWidget4(BaseWidget) :
       elif keycode[1] == ']':
          self.arpeg.set_direction('up')
       elif keycode[1] == '\\':
-         self.arpeg.set_direction('updown')
+         self.arpeg.set_direction('updown') 
+      elif keycode[1] == "enter":
+         self.record_arpeg_on = True
+      elif keycode[1] == "shift":
+         print "in shift!"
+         self.set_arpeg_pulse = True
+      elif keycode[1] == ",":
+         self.arpeg.set_rhythm(self.arpeg.pulse, .1)
+      elif keycode[1] == ".":
+         self.arpeg.set_rhythm(self.arpeg.pulse, .5)
+      elif keycode[1] == '/':
+         self.arpeg.set_rhythm(self.arpeg.pulse, 1.0)
+
+
+
+   def on_key_up(self, keycode):
+      if keycode[1] == "enter" and len(self.recorded_arpeg_notes) > 1:
+         self.record_arpeg_on = False
+         self.arpeg.set_notes(self.recorded_arpeg_notes)
+         print "recorded arpeg: " + str(self.recorded_arpeg_notes)
+         self.recorded_arpeg_notes = []
+
+      if keycode[1] == "shift":
+         self.set_arpeg_pulse = False
+         print "arpeg pulse is: " + str(self.arpeg_pulse)
+         if self.arpeg_pulse in self.valid_pulses:
+            self.arpeg.set_rhythm(int(self.arpeg_pulse), self.arpeg.note_len_ratio)
+         self.arpeg_pulse = ''
 
    def on_update(self) :
       # scheduler gets poked every frame
