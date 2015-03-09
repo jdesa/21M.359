@@ -20,8 +20,10 @@ class MainWidget4(BaseWidget) :
       super(MainWidget4, self).__init__()
 
       self.audio = Audio()
-      self.synth = Synth('../FluidR3_GM.sf2')
-      self.audio.add_generator(self.synth)
+      self.synth_metro = Synth('../FluidR3_GM.sf2')
+      self.synth_arpeg = Synth('../FluidR3_GM.sf2')
+      self.audio.add_generator(self.synth_metro)
+      self.audio.add_generator(self.synth_arpeg)
 
       # create clock, conductor, scheduler
       self.clock = Clock()
@@ -29,12 +31,14 @@ class MainWidget4(BaseWidget) :
       self.sched = Scheduler(self.cond)
 
       # create the metronome:
-      self.metro = Metronome(self.sched, self.synth)
+      self.metro = Metronome(self.sched, self.synth_metro)
       self.metro_on = False
 
-      self.arpeg = Arpeggiator(self.sched, self.synth, 4.0, [60, 64, 67, 72, 76])
+      self.arpeg = Arpeggiator(self.sched, self.synth_arpeg, 4.0, [60, 64, 67, 72, 76]) 
       self.arpeg_on = False
-      
+      self.arpeg_select = False
+      #self.arpeg2 = Arpeggiator(self.sched, self.synth_arpeg, 4.0, [60-12, 64-12, 67-12, 72-12, 76-12])
+
       self.record_arpeg_on = False
       self.recorded_arpeg_notes = []
 
@@ -91,11 +95,14 @@ class MainWidget4(BaseWidget) :
       if keycode[1] == 'a':
          if self.arpeg_on == False:
             self.arpeg.start()
+            #elf.arpeg2.start()
             self.arpeg_on = True
          else:
             print "in stop"
             self.arpeg.stop()
+            #self.arpeg2.stop()
             self.arpeg_on = False
+      
       if keycode[1] == '[':
          self.arpeg.set_direction('down')
       elif keycode[1] == ']':
@@ -107,8 +114,9 @@ class MainWidget4(BaseWidget) :
       elif keycode[1] == "shift":
          print "in shift!"
          self.set_arpeg_pulse = True
+      
       elif keycode[1] == ",":
-         self.arpeg.set_rhythm(self.arpeg.pulse, .1)
+         self.arpeg.set_rhythm(self.arpeg.pulse, 1.5)
       elif keycode[1] == ".":
          self.arpeg.set_rhythm(self.arpeg.pulse, .5)
       elif keycode[1] == '/':
