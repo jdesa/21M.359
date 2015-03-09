@@ -22,8 +22,10 @@ class MainWidget4(BaseWidget) :
       self.audio = Audio()
       self.synth_metro = Synth('../FluidR3_GM.sf2')
       self.synth_arpeg = Synth('../FluidR3_GM.sf2')
+      self.synth = Synth('../FluidR3_GM.sf2')
       self.audio.add_generator(self.synth_metro)
       self.audio.add_generator(self.synth_arpeg)
+      self.audio.add_generator(self.synth)
 
       # create clock, conductor, scheduler
       self.clock = Clock()
@@ -36,8 +38,11 @@ class MainWidget4(BaseWidget) :
 
       self.arpeg = Arpeggiator(self.sched, self.synth_arpeg, 4.0, [60, 64, 67, 72, 76]) 
       self.arpeg_on = False
+      self.arpeg2 = Arpeggiator(self.sched, self.synth_arpeg, 4.0, [60-12, 64-12, 67-12, 72-12, 76-12])
+      
+      self.arpegdict = {'1': self.arpeg, '2': self.arpeg2}
       self.arpeg_select = False
-      #self.arpeg2 = Arpeggiator(self.sched, self.synth_arpeg, 4.0, [60-12, 64-12, 67-12, 72-12, 76-12])
+      self.arpeg_selected = '1'
 
       self.record_arpeg_on = False
       self.recorded_arpeg_notes = []
@@ -61,6 +66,13 @@ class MainWidget4(BaseWidget) :
          elif self.set_arpeg_pulse:
             self.arpeg_pulse += keycode[1]
             print self.arpeg_pulse
+         elif self.arpeg_select:
+            self.arpeg_selected = keycode[1]
+            print "arpeg selected: " + str(self.arpeg_selected)
+            if self.arpeg_selected in self.arpegdict.keys():
+               pass
+            else:
+               self.arpegdict[keycode[1]] = Arpeggiator(self.sched, self.synth_arpeg, 4.0, [60, 64, 67, 72, 76])
          else:
             self.synth.noteon(0, pitch, 100)
 
@@ -73,7 +85,6 @@ class MainWidget4(BaseWidget) :
             self.metro.start()
             self.metro_on = True
          else:
-            print "in stop"
             self.metro.stop()
             self.metro_on = False
 
@@ -94,40 +105,40 @@ class MainWidget4(BaseWidget) :
 
       if keycode[1] == 'a':
          if self.arpeg_on == False:
-            self.arpeg.start()
-            #elf.arpeg2.start()
-            self.arpeg_on = True
+            for arpeg in self.arpegdict.values():
+               arpeg.start()
+               #elf.arpeg2.start()
+               self.arpeg_on = True
          else:
-            print "in stop"
-            self.arpeg.stop()
-            #self.arpeg2.stop()
-            self.arpeg_on = False
+            for arpeg in self.arpegdict.values():
+               arpeg.stop()
+               #self.arpeg2.stop()
+               self.arpeg_on = False
+      
+      if keycode[1] == 's':
+         self.arpeg_select = True
+
+      if keycode[1] == 'd':
+         self.arpegdict[self.arpeg_selected].stop()
+
+      if keycode[1] == 'f':
+         self.arpegdict[self.arpeg_selected].start()
       
       if keycode[1] == '[':
-         self.arpeg.set_direction('down')
+         self.arpegdict[self.arpeg_selected].set_direction('down')
       elif keycode[1] == ']':
-         self.arpeg.set_direction('up')
+         self.arpegdict[self.arpeg_selected].set_direction('up')
       elif keycode[1] == '\\':
-         self.arpeg.set_direction('updown') 
+         self.arpegdict[self.arpeg_selected].set_direction('updown') 
       elif keycode[1] == "enter":
          self.record_arpeg_on = True
       elif keycode[1] == "shift":
-         print "in shift!"
          self.set_arpeg_pulse = True
-      
-      elif keycode[1] == ",":
-         self.arpeg.set_rhythm(self.arpeg.pulse, 1.5)
-      elif keycode[1] == ".":
-         self.arpeg.set_rhythm(self.arpeg.pulse, .5)
-      elif keycode[1] == '/':
-         self.arpeg.set_rhythm(self.arpeg.pulse, 1.0)
-
-
 
    def on_key_up(self, keycode):
       if keycode[1] == "enter" and len(self.recorded_arpeg_notes) > 1:
          self.record_arpeg_on = False
-         self.arpeg.set_notes(self.recorded_arpeg_notes)
+         self.arpegdict[self.arpeg_selected].set_notes(self.recorded_arpeg_notes)
          print "recorded arpeg: " + str(self.recorded_arpeg_notes)
          self.recorded_arpeg_notes = []
 
@@ -135,8 +146,11 @@ class MainWidget4(BaseWidget) :
          self.set_arpeg_pulse = False
          print "arpeg pulse is: " + str(self.arpeg_pulse)
          if self.arpeg_pulse in self.valid_pulses:
-            self.arpeg.set_rhythm(int(self.arpeg_pulse), self.arpeg.note_len_ratio)
+            self.arpegdict[self.arpeg_selected].set_rhythm(int(self.arpeg_pulse), self.arpeg.note_len_ratio)
          self.arpeg_pulse = ''
+
+      if keycode[1] == "s":
+         self.arpeg_select = False
 
    def on_update(self) :
       # scheduler gets poked every frame
