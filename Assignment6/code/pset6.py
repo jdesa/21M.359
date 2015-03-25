@@ -167,15 +167,22 @@ class MainWidget(BaseWidget) :
       
       self.harp.set_hand_pos(norm_pt)
 
-      if self.harp.active and abs(pt[0] - self.harp.string.get_resting_x()) < 50 and abs(pt[1] - self.harp.string.get_mid_point_height()) < 50:
-         self.harp.string.set_mid_point(pt[0], pt[1])
+      if self.harp.active and abs(pt[0] - self.harp.string.get_resting_x()) < 100 and abs(pt[1] - self.harp.string.get_mid_point_height()) < 100:
+         if abs(pt[0] - self.harp.string.get_resting_x()) < 50 and abs(pt[1] - self.harp.string.get_mid_point_height()) < 50:
+            self.harp.string.set_mid_point(pt[0], pt[1])
+         else:
+            self.harp.string.set_mid_point(self.harp.string.get_resting_x(), self.harp.string.get_mid_point_height())
+            self.harp.on_pluck(10)
          print "grabbed"
-         self.canvas.remove(self.string)
-         self.string = self.harp.string.on_update()
-         self.canvas.add(self.harp.string.color)
-         self.canvas.add(self.string)
+      else:
+         self.harp.string.set_mid_point(self.harp.string.get_resting_x(), self.harp.string.get_mid_point_height())
 
-         print "self.string is: " + str(self.string)
+      self.canvas.remove(self.string)
+      self.string = self.harp.string.on_update()
+      self.canvas.add(self.harp.string.color)
+      self.canvas.add(self.string)
+
+      print "self.string is: " + str(self.string)
 
 # convert pt into unit scale (ie, range [0,1]) assuming that pt falls in the
 # the range [min_val, max_val]
