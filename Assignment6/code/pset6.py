@@ -6,13 +6,16 @@ sys.path.append('./common')
 from core import *
 from kinect import *
 from graphics import *
+from song import *
+from clock import *
+from clock import kTicksPerQuarter
+from audio import *
+from synth import *
 
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Ellipse, Line
 from kivy.graphics.instructions import InstructionGroup
-
-from pprint import pprint
 
 import numpy as np
 
@@ -24,9 +27,18 @@ class NotePlayer(object):
    def __init__(self, synth):
       super(NotePlayer, self).__init__()
       self.synth = synth
+      self.song = Song()
+      self.beat_len = kTicksPerQuarter
+      self.channel = 0
 
    def play_note(self, pitch, velocity, duration):
-      pass
+      print "synth: " + str(self.synth)
+
+      self.synth.noteon(0, pitch, duration)
+
+      #self.synth.noteon(self.channel, pitch, duration)
+      tick = self.song.cond.get_tick()
+      #self.song.sched.post_at_tick(tick + self.beat_len, self.synth.noteoff(self.channel, pitch), pitch)
 
    def on_update(self):
       pass
@@ -72,17 +84,36 @@ class String(InstructionGroup):
 # correspondence). The PluckGesture also controls controls the String instance by 
 # setting its behavior
 class PluckGesture(object):
-   def __init__(self, string, grab_thresh, pluck_thresh, idx, callback):
+   def __init__(self, harp, string, grab_thresh, pluck_thresh):
       super(PluckGesture, self).__init__()
+      self.harp = harp
+      self.string = string
+      self.grab_thresh = grab_thresh
+      self.pluck_thresh = pluck_thresh
+      self.grabbed = False
 
    def set_hand_pos(self, x, y, active):
-      pass
+      if self.grabbed and active and abs(x - self.string.get_resting_x()) > self.grab_thresh and abs(x - self.string.get_resting_x()) <= self.pluck_thresh:
+         self.string.set_mid_point(self.string.get_resting_x(), self.string.get_mid_point_height())
+         self.harp.on_pluck()
+         self.grabbed = False
+         print "plucked"
+
+      elif active and abs(x - self.string.get_resting_x()) <= self.grab_thresh:
+         self.harp.string.set_mid_point(self.string.get_resting_x(), self.harp.string.get_mid_point_height())
+         self.grabbed = True
+         print "grabbed"
+
+      elif not active:
+         self.grabbed = False
+         self.harp.string.set_mid_point(self.string.get_resting_x(), self.string.get_mid_point_height())
+         print "neither"
 
 
 # The Harp class combines the above classes into a fully working harp. It
 # instantiates the strings and pluck gestures as well as a hand cursor display
 class Harp(InstructionGroup):
-   def __init__(self, area, pos, num_strings):
+   def __init__(self, synth, area, pos, num_strings):
       super(Harp, self).__init__()
       self.area = area
       self.pos = pos
@@ -92,7 +123,9 @@ class Harp(InstructionGroup):
       self.active = False
       self.active_color = (0,255,0)
       self.inactive_color = (255, 0, 0)
-
+      self.synth = synth
+      self.synth.program(0, 46, 0)
+      self.noteplayer = NotePlayer(self.synth)
       self.string = String((area[0]/2+pos[0], pos[1]), (area[0]/2+pos[0], area[1] + pos[1]), (0,0,255))
 
 
@@ -104,13 +137,11 @@ class Harp(InstructionGroup):
       color = self.active_color if self.active else self.inactive_color
       self.cursor.set_color(color)
 
-      print "pos: " + str(pos)
-      print "mid_pt: " + str(self.string.mid_pt)
-
 
    # callback to be called from a PluckGesture when a pluck happens
    def on_pluck(self, idx):
-      print 'pluck:', idx
+      self.noteplayer.play_note(72,100,100)
+      print "plucked"
 
    # for animation and NotePlayer
    def on_update(self, dt):
@@ -134,9 +165,14 @@ class MainWidget(BaseWidget) :
          self.kinect = Kinect()
          self.kinect.add_joint(kJointRightHand)
 
+      self.grabbed = False
+      self.audio = Audio()
+      self.synth = Synth('../FluidR3_GM.sf2')
+      self.audio.add_generator(self.synth)
+
       area = (600, 400) #harp area
       pos = (100, 100) #Harp position
-      self.harp = Harp(area, pos, 10) #harp initalization, 10 strings
+      self.harp = Harp(self.synth, area, pos, 10) #harp initalization, 10 strings
       self.canvas.add(self.harp)
       self.canvas.add(Color(255,255,255))
       self.string = self.harp.string.string
@@ -167,22 +203,32 @@ class MainWidget(BaseWidget) :
       
       self.harp.set_hand_pos(norm_pt)
 
-      if self.harp.active and abs(pt[0] - self.harp.string.get_resting_x()) < 100 and abs(pt[1] - self.harp.string.get_mid_point_height()) < 100:
-         if abs(pt[0] - self.harp.string.get_resting_x()) < 50 and abs(pt[1] - self.harp.string.get_mid_point_height()) < 50:
-            self.harp.string.set_mid_point(pt[0], pt[1])
-         else:
-            self.harp.string.set_mid_point(self.harp.string.get_resting_x(), self.harp.string.get_mid_point_height())
-            self.harp.on_pluck(10)
-         print "grabbed"
-      else:
+      if not self.harp.active:
+         self.grabbed = False
+         #print "inactive"
+
+      elif self.harp.active and abs(pt[0] - self.harp.string.get_resting_x()) < 50:
+         self.grabbed = True
+         self.harp.string.set_mid_point(pt[0], pt[1])
+         #print "grabbed"
+
+      elif self.grabbed and self.harp.active and abs(pt[0] - self.harp.string.get_resting_x()) >= 50 and abs(pt[0] - self.harp.string.get_resting_x()) < 100:
+         self.grabbed = False
          self.harp.string.set_mid_point(self.harp.string.get_resting_x(), self.harp.string.get_mid_point_height())
+         self.harp.on_pluck(10)
+         #print "plucked"
+              
+      else:
+         self.grabbed = False
+         self.harp.string.set_mid_point(self.harp.string.get_resting_x(), self.harp.string.get_mid_point_height())
+         #print "neither"
 
       self.canvas.remove(self.string)
       self.string = self.harp.string.on_update()
       self.canvas.add(self.harp.string.color)
       self.canvas.add(self.string)
 
-      print "self.string is: " + str(self.string)
+
 
 # convert pt into unit scale (ie, range [0,1]) assuming that pt falls in the
 # the range [min_val, max_val]
