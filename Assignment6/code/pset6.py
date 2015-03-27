@@ -24,21 +24,17 @@ import numpy as np
 # automatically call the note off some time later. Remeber to call on_update()
 # on it.
 class NotePlayer(object):
-   def __init__(self, synth):
+   def __init__(self, synth, song):
       super(NotePlayer, self).__init__()
       self.synth = synth
-      self.song = Song()
+      self.song = song
       self.beat_len = kTicksPerQuarter
       self.channel = 0
 
    def play_note(self, pitch, velocity, duration):
-      print "synth: " + str(self.synth)
-
-      self.synth.noteon(0, pitch, duration)
-
-      #self.synth.noteon(self.channel, pitch, duration)
+      self.synth.noteon(self.channel, pitch, duration)
       tick = self.song.cond.get_tick()
-      #self.song.sched.post_at_tick(tick + self.beat_len, self.synth.noteoff(self.channel, pitch), pitch)
+      self.song.sched.post_at_tick(tick + duration, self.synth.noteoff(self.channel, pitch), pitch)
 
    def on_update(self):
       pass
@@ -53,13 +49,16 @@ class String(InstructionGroup):
       self.mid_pt = (bottom_pt[0], (top_pt[1] - bottom_pt[1])/2 + bottom_pt[1])
       self.string = Line(points = [self.top_pt[0], self.top_pt[1], self.mid_pt[0], self.mid_pt[1], self.bottom_pt[0], self.bottom_pt[1]], width = 5)
       self.active = True
-      self.color = Color(255,255,255)
-
+      self.color = Color(*rgb)
+      self.add(self.color)
    # bends the string by moving the mid-point of the string to the "hand
    # location"
    def set_mid_point(self, x, y):
       if self.active:
          self.mid_pt = (x,y)
+
+   def get_mid_point(self):
+      return self.mid_pt
 
    # resets the string to being normal / still.
    def set_inactive(self):
@@ -76,38 +75,45 @@ class String(InstructionGroup):
    # if the string is going to animate (say, when it is plucked), on_update is
    # necessary
    def on_update(self):
+      self.remove(self.string)
       self.string = Line(points = [self.top_pt[0], self.top_pt[1], self.mid_pt[0], self.mid_pt[1], self.bottom_pt[0], self.bottom_pt[1]], width = 5)
-      return self.string
+      self.add(self.string)
+      return self
 
 # This class monitors the location of the hand and determines if a pluck of
 # the string happened. Each PluckGesture is associated with a string (1-1
 # correspondence). The PluckGesture also controls controls the String instance by 
 # setting its behavior
 class PluckGesture(object):
-   def __init__(self, harp, string, grab_thresh, pluck_thresh):
+   def __init__(self, harp, string, grab_thresh, pluck_thresh, pitch):
       super(PluckGesture, self).__init__()
       self.harp = harp
       self.string = string
       self.grab_thresh = grab_thresh
       self.pluck_thresh = pluck_thresh
       self.grabbed = False
+      self.pitch = pitch
 
    def set_hand_pos(self, x, y, active):
-      if self.grabbed and active and abs(x - self.string.get_resting_x()) > self.grab_thresh and abs(x - self.string.get_resting_x()) <= self.pluck_thresh:
-         self.string.set_mid_point(self.string.get_resting_x(), self.string.get_mid_point_height())
-         self.harp.on_pluck()
+      if not self.harp.active:
          self.grabbed = False
-         print "plucked"
+         #print "inactive"
 
-      elif active and abs(x - self.string.get_resting_x()) <= self.grab_thresh:
-         self.harp.string.set_mid_point(self.string.get_resting_x(), self.harp.string.get_mid_point_height())
+      elif self.harp.active and abs(x - self.string.get_resting_x()) < 50:
          self.grabbed = True
-         print "grabbed"
+         self.string.set_mid_point(x, y)
+         #print "grabbed"
 
-      elif not active:
+      elif self.grabbed and self.harp.active and abs(x - self.string.get_resting_x()) >= 50 and abs(x - self.string.get_resting_x()) < 100:
          self.grabbed = False
-         self.harp.string.set_mid_point(self.string.get_resting_x(), self.string.get_mid_point_height())
-         print "neither"
+         self.string.set_mid_point(self.string.get_resting_x(), self.string.get_mid_point_height())
+         self.harp.on_pluck(self.pitch)
+         #print "plucked"
+
+      else:
+         self.grabbed = False
+         self.string.set_mid_point(self.string.get_resting_x(), self.string.get_mid_point_height())
+         #print "neither"
 
 
 # The Harp class combines the above classes into a fully working harp. It
@@ -120,13 +126,43 @@ class Harp(InstructionGroup):
       self.num_strings = num_strings
       self.cursor = Cursor3D(area, pos, (.2, .6, .2), True)
       self.z_index = 0
+      self.song = Song()
+      
       self.active = False
       self.active_color = (0,255,0)
       self.inactive_color = (255, 0, 0)
+      
       self.synth = synth
       self.synth.program(0, 46, 0)
-      self.noteplayer = NotePlayer(self.synth)
-      self.string = String((area[0]/2+pos[0], pos[1]), (area[0]/2+pos[0], area[1] + pos[1]), (0,0,255))
+      self.noteplayer = NotePlayer(self.synth, self.song)
+
+ 
+      ###########
+      # Strings
+      ###########
+
+      self.strings = []
+      for i in range(self.num_strings):
+         x = self.area[0] / self.num_strings * i + self.pos[0]
+         if i % 7 == 0: 
+            rgb = (255,0,0)
+         elif i % 7 == 3:
+            rgb = (0,0,255)
+         else:
+            rgb = (255,255,255)
+         string = String((x, pos[1]), (x, area[1] + pos[1]), rgb)
+
+         self.strings.append(string)
+
+
+      ###############
+      # PluckGestures
+      ###############
+
+      self.pluckgestures = []
+      for string in self.strings:
+         pluckgesture = PluckGesture(self, string, 50, 100, 60)
+         self.pluckgestures.append(pluckgesture)
 
 
    # set the hand position as a 3D vector ranging from [0,0,0] to [1,1,1]
@@ -139,8 +175,8 @@ class Harp(InstructionGroup):
 
 
    # callback to be called from a PluckGesture when a pluck happens
-   def on_pluck(self, idx):
-      self.noteplayer.play_note(72,100,100)
+   def on_pluck(self, pitch):
+      self.noteplayer.play_note(pitch,100,100)
       print "plucked"
 
    # for animation and NotePlayer
@@ -170,14 +206,20 @@ class MainWidget(BaseWidget) :
       self.synth = Synth('../FluidR3_GM.sf2')
       self.audio.add_generator(self.synth)
 
+      ############
+      # Harp
+      ############
       area = (600, 400) #harp area
       pos = (100, 100) #Harp position
-      self.harp = Harp(self.synth, area, pos, 10) #harp initalization, 10 strings
+      self.harp = Harp(self.synth, area, pos, 7) #harp initalization, 10 strings
       self.canvas.add(self.harp)
+     
       self.canvas.add(Color(255,255,255))
-      self.string = self.harp.string.string
-      self.canvas.add(self.string)
       self.canvas.add(self.harp.cursor)
+
+      for pluckgesture in self.harp.pluckgestures:
+         self.canvas.add(pluckgesture.string)
+         print "pluckgesture.string: " + str(pluckgesture.string)
 
 
    def on_update(self) :
@@ -202,34 +244,21 @@ class MainWidget(BaseWidget) :
       self.label.text = '\n'.join(['%.0f %.2f' % x for x in zip(pt, norm_pt)])
       
       self.harp.set_hand_pos(norm_pt)
+      
+      for pluckgesture in self.harp.pluckgestures:
+         pluckgesture.set_hand_pos(pt[0],pt[1], self.harp.active)
+         pluckgesture.string.on_update()
+         print "string: " + str(pluckgesture.string)
+         print "string info: " + str(pluckgesture.string.get_mid_point())
 
-      if not self.harp.active:
-         self.grabbed = False
-         #print "inactive"
-
-      elif self.harp.active and abs(pt[0] - self.harp.string.get_resting_x()) < 50:
-         self.grabbed = True
-         self.harp.string.set_mid_point(pt[0], pt[1])
-         #print "grabbed"
-
-      elif self.grabbed and self.harp.active and abs(pt[0] - self.harp.string.get_resting_x()) >= 50 and abs(pt[0] - self.harp.string.get_resting_x()) < 100:
-         self.grabbed = False
-         self.harp.string.set_mid_point(self.harp.string.get_resting_x(), self.harp.string.get_mid_point_height())
-         self.harp.on_pluck(10)
-         #print "plucked"
-              
-      else:
-         self.grabbed = False
-         self.harp.string.set_mid_point(self.harp.string.get_resting_x(), self.harp.string.get_mid_point_height())
-         #print "neither"
-
-      self.canvas.remove(self.string)
-      self.string = self.harp.string.on_update()
-      self.canvas.add(self.harp.string.color)
-      self.canvas.add(self.string)
-
-
-
+      '''
+      for string in self.harp.strings:
+         string.on_update()
+         print "string: " + str(string)
+         print "canvas: " + str(self.canvas)
+      '''
+      print " load: " + str(self.audio.get_load())
+      
 # convert pt into unit scale (ie, range [0,1]) assuming that pt falls in the
 # the range [min_val, max_val]
 # value is clipped [0,1]
