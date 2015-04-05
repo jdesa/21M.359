@@ -58,9 +58,6 @@ class CornerRectangleWidget(Widget):
 class MainWidget(BaseWidget) :
    def __init__(self):
       super(MainWidget, self).__init__()
-      self.label = Label(text = "text", pos=(50, 500), text_size=(150,100), valign='top')
-      self.add_widget(self.label)
-
       self.test = CornerRectangleWidget()
       #self.add_widget(self.test)
       
@@ -73,9 +70,11 @@ class MainWidget(BaseWidget) :
    def on_key_down(self, keycode, modifiers):
       # play / stop toggle
       if keycode[1] == 'p':
-         pass
+         self.audiocontroller.toggle()
       if keycode[1] == 't':
          print(self.gemdata.get_all_ticks())
+      if keycode[1] == 'spacebar':
+         self.audiocontroller.set_mute(True)
 
       # button down   
       idx = '12345'.find(keycode[1])
@@ -90,8 +89,6 @@ class MainWidget(BaseWidget) :
 
    def on_update(self) :
       pass
-
-
 
 # creates the Audio driver
 # creates a song and loads it with solo and bg audio tracks
@@ -215,9 +212,10 @@ class GemDisplay(InstructionGroup):
 class ButtonDisplay(InstructionGroup):
    def __init__(self, pos, color):
       super(ButtonDisplay, self).__init__()
-      self.color = color
+      self.color = Color(*color)
+      self.color.a = .75
       self.pos = pos
-      self.rectangle = Rectangle(pos=(pos, 0), size=(width/5, 100))
+      self.rectangle = Rectangle(pos=(pos, 0), size=(width/5, 50))
       self.add(self.rectangle)
    # displays when button is down (and if it hit a gem)
    def on_down(self, hit):
@@ -246,7 +244,7 @@ class BeatMatchDisplay(InstructionGroup):
       for i in range(5):
          button = ButtonDisplay(i*width/5,color_dict[i+2])
          self.nowbar.append(button)
-         self.add(Color(*button.color))
+         self.add(button.color)
          self.add(button)
       print self.nowbar
 
