@@ -24,47 +24,33 @@ import bisect
 from collections import namedtuple
 
 
-color_dict = [(255,0,0),
-         (255,128,0),
-         (255,255,0),
-         (255,20,147),
-         (0,255,128),
+color_dict = [
          (0,255,0),
          (255,0,255),
          (0,0,255),
          (138,43,226),
          (127,0,255),
          (255,51,255),
-         (255,51,153)
+         (255,51,153),
+         (255,0,0),
+         (255,128,0),
+         (255,255,0),
+         (255,20,147),
+         (0,255,128)
       ]
-
-class CornerRectangleWidget(Widget):
-    def __init__(self, **kwargs):
-        super(CornerRectangleWidget, self).__init__(**kwargs)
-
-        with self.canvas:
-            Color(1, 0, 0, 1)  # set the colour to red
-            self.rect = Rectangle(pos=self.center,
-                                  size=(self.width/2.,
-                                        self.height/2.))
-
-        self.bind(pos=self.update_rect,
-                  size=self.update_rect)
-
-    def update_rect(self, *args):
-        self.rect.pos = self.pos
-        self.rect.size = self.size
+width = 800
+height = 600
+numtracks = 5
+gem_height = 50
+track_width = width/numtracks
 
 class MainWidget(BaseWidget) :
    def __init__(self):
-      super(MainWidget, self).__init__()
-      self.test = CornerRectangleWidget()
-      #self.add_widget(self.test)
-      
-      self.gemdata = GemData("examplegemfile.txt");
+      super(MainWidget, self).__init__()   
       self.audiocontroller = AudioController("bwww", "TakeMeOut")
       
-      self.beatmatchdisplay = BeatMatchDisplay(self.gemdata, "")
+      self.gemdata = GemData("examplegemfile.txt");
+      self.beatmatchdisplay = BeatMatchDisplay(self.gemdata, self.audiocontroller.song.cond)
       self.canvas.add(self.beatmatchdisplay)
 
    def on_key_down(self, keycode, modifiers):
@@ -72,7 +58,8 @@ class MainWidget(BaseWidget) :
       if keycode[1] == 'p':
          self.audiocontroller.toggle()
       if keycode[1] == 't':
-         print(self.gemdata.get_all_ticks())
+         #print(self.gemdata.get_all_ticks())
+         pass
       if keycode[1] == 'spacebar':
          self.audiocontroller.set_mute(True)
 
@@ -88,7 +75,7 @@ class MainWidget(BaseWidget) :
          pass
 
    def on_update(self) :
-      pass
+      self.beatmatchdisplay.on_update()
 
 # creates the Audio driver
 # creates a song and loads it with solo and bg audio tracks
@@ -140,6 +127,12 @@ class Gem(object):
    def __repr__(self):
       return "Tick: " + str(self.tick) + " Track: " + str(self.track) + " Duration: " + str(self.duration)
 
+   def track_to_posx(self):
+      return self.track*track_width
+
+   def tick_to_posy(self):
+      return self.tick
+
 # holds data for gems
 class GemData(object):
    def __init__(self, filepath):
@@ -170,7 +163,8 @@ class GemData(object):
                gem = Gem(tick, track, duration)
                self.gems.append(gem)
                self.ticks.append(tick)
-            tick += duration
+               tick += duration
+            #print "tick is: " + str(tick)
 
    def get_all_gems(self):
       return self.gems
@@ -185,16 +179,16 @@ class GemData(object):
    def get_len(self):
       return len(self.gems)
 
-
-
 # display for a single gem at a position with a color (if desired)
 class GemDisplay(InstructionGroup):
    def __init__(self, pos, color):
       super(GemDisplay, self).__init__()
-      self.color = color
-      self.color.a = .1
+      self.color = Color(*color)
+      self.color.a = .75
       self.pos = pos
-      self.rectangle = Rectangle(pos=(pos+pos/2, pos+pos/2), size=(100, 100))
+      self.rectangle = Rectangle(pos=pos, size=(track_width, gem_height))
+      self.add(self.color)
+      self.add(self.rectangle)
 
    # change to display this gem being hit
    def on_hit(self):
@@ -202,7 +196,7 @@ class GemDisplay(InstructionGroup):
 
    # change to display a passed gem
    def on_pass(self):
-      self.color = .1
+      self.color = .5
 
    # useful if gem is to animate
    def on_update(self, dt):
@@ -215,7 +209,8 @@ class ButtonDisplay(InstructionGroup):
       self.color = Color(*color)
       self.color.a = .75
       self.pos = pos
-      self.rectangle = Rectangle(pos=(pos, 0), size=(width/5, 50))
+      self.rectangle = Rectangle(pos=(pos, 0), size=(track_width, gem_height))
+      self.add(self.color)
       self.add(self.rectangle)
    # displays when button is down (and if it hit a gem)
    def on_down(self, hit):
@@ -228,27 +223,38 @@ class ButtonDisplay(InstructionGroup):
    def on_up(self):
       print "Button on up" 
 
-width = 800
-height = 600
 # Displays all game elements: Nowbar, Buttons, BarLines, Gems.
 # scrolls the gem display.
 # controls the gems and nowbar buttons
 class BeatMatchDisplay(InstructionGroup):
    def __init__(self, gem_data, cond):
       super(BeatMatchDisplay, self).__init__()
-      self.gem_data = gem_data
       self.cond = cond
 
       #Button Creation
       self.nowbar = []
       for i in range(5):
-         button = ButtonDisplay(i*width/5,color_dict[i+2])
+         button = ButtonDisplay(i*track_width,color_dict[i])
          self.nowbar.append(button)
-         self.add(button.color)
          self.add(button)
-      print self.nowbar
 
-   # called by Player. Causes the right thing to happen
+      self.translate = Translate(0,0)
+      print "translate: " + str(self.translate)
+      self.add(self.translate)
+
+      #Gem Creation
+      self.gem_data = gem_data
+      for gem in self.gem_data.get_all_gems():
+         pos = (gem.track_to_posx(), gem.tick_to_posy())
+         print "track is: " + str(gem.track)
+         color = color_dict[gem.track]
+         gemdisplay = GemDisplay(pos, color)
+         self.add(gemdisplay)
+         print "Made GemDisplay at pos: " + str(pos)
+
+
+
+   # called by Player. Causes theright thing to happen
    def gem_hit(self, gem_idx):
       pass
 
@@ -266,9 +272,9 @@ class BeatMatchDisplay(InstructionGroup):
 
    # call every frame to make gems and barlines flow down the screen
    def on_update(self) :
-      pass
-
-
+      print str(self.cond.get_tick())
+      self.translate.y = self.cond.get_tick()
+      print self.translate.y
 
 # Handles game logic and keeps score. 
 # Controls the display and the audio
