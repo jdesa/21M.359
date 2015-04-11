@@ -60,7 +60,7 @@ kTicksPerQuarter = 480
 # read the file to create the list of (time, tick) points
 # TempoMap will linearly interpolate this graph
 class TempoMap(object):
-   def __init__(self, data = None, filepath = None):
+   def __init__(self, filepath = None, data = None):
       super(TempoMap, self).__init__()
 
       if data == None:
@@ -77,23 +77,24 @@ class TempoMap(object):
       tick = np.interp(time, self.times, self.ticks)
       return tick
 
-   def tick_to_time(self, tick) :
-      time = np.interp(tick, self.ticks, self.times)
-      return time
-
    def _read_tempo_data(self, filepath):
+      # always start with 0,0 as the first point
       data = [(0,0)]
 
-      for line in open(filepath).readlines():
-         (time, beats) = line.strip().split('\t')
-         time = float(time)
+      # read (time, delta_beat) pairs from the file. Each point represents a
+      # point in time with a beats-delta from the previous point, or "how many
+      # beats have passed since the last marker"
+      lines =  open(filepath).read().split('\n')
+      for line in lines:
+         if '\t' in line:
+            (time, delta_beat) = line.split('\t')
+            time = float(time)
 
-         delta_tick = float(beats) * kTicksPerQuarter
-         last_tick = data[-1][1]
-         data.append( (time, last_tick + delta_tick))
+            delta_tick = float(delta_beat) * kTicksPerQuarter
+            last_tick = data[-1][1]
+            data.append( (time, last_tick + delta_tick))
 
       return data
-
 
 # Knows about a clock. Converts between time and ticks.
 class Conductor(object):

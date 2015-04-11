@@ -1,6 +1,4 @@
 #pset7.py
-
-
 import sys
 sys.path.append('./common')
 from core import *
@@ -25,18 +23,11 @@ from collections import namedtuple
 
 
 color_dict = [
-         (0,255,0),
-         (255,0,255),
-         (0,0,255),
-         (138,43,226),
-         (127,0,255),
-         (255,51,255),
-         (255,51,153),
-         (255,0,0),
-         (255,128,0),
-         (255,255,0),
-         (255,20,147),
-         (0,255,128)
+         (0,128,0),
+         (128,0,0),
+         (0,128,128),
+         (128,0,128),
+         (0,0,128)
       ]
 width = 800
 height = 600
@@ -57,11 +48,23 @@ class MainWidget(BaseWidget) :
       # play / stop toggle
       if keycode[1] == 'p':
          self.audiocontroller.toggle()
+
       if keycode[1] == 't':
          #print(self.gemdata.get_all_ticks())
          pass
       if keycode[1] == 'spacebar':
          self.audiocontroller.set_mute(True)
+
+      if keycode[1] == "a":
+         self.beatmatchdisplay.nowbar[0].on_down(True)
+      if keycode[1] == "s":
+         self.beatmatchdisplay.nowbar[1].on_down(True)
+      if keycode[1] == "d":
+         self.beatmatchdisplay.nowbar[2].on_down(True)
+      if keycode[1] == "f":
+         self.beatmatchdisplay.nowbar[3].on_down(True)
+      if keycode[1] == "g":
+         self.beatmatchdisplay.nowbar[4].on_down(True)
 
       # button down   
       idx = '12345'.find(keycode[1])
@@ -73,6 +76,16 @@ class MainWidget(BaseWidget) :
       idx = '12345'.find(keycode[1])
       if idx != -1:
          pass
+      if keycode[1] == "a":
+         self.beatmatchdisplay.nowbar[0].on_up()
+      if keycode[1] == "s":
+         self.beatmatchdisplay.nowbar[1].on_up()
+      if keycode[1] == "d":
+         self.beatmatchdisplay.nowbar[2].on_up()
+      if keycode[1] == "f":
+         self.beatmatchdisplay.nowbar[3].on_up()
+      if keycode[1] == "g":
+         self.beatmatchdisplay.nowbar[4].on_up()
 
    def on_update(self) :
       self.beatmatchdisplay.on_update()
@@ -88,6 +101,11 @@ class AudioController(object):
       self.song_name = song_name
 
       self.song = Song()
+      # set up Tempo Track correctly.
+      self.tempo_map = TempoMap("_takemeout_tempo.txt")
+      self.song.cond.set_tempo_map(self.tempo_map)
+      print (str(self.song.cond.tempo_map))
+      
       #add background track
       self.bg_track = AudioTrack(self.audio, self.song_name + "_bg.wav")
       self.song.add_track(self.bg_track)
@@ -114,7 +132,7 @@ class AudioController(object):
 
    # needed to update song
    def on_update(self):
-      pass
+      self.song.on_update()
 
 kticksperquarter = 480
 class Gem(object):
@@ -133,6 +151,17 @@ class Gem(object):
    def tick_to_posy(self):
       return self.tick
 
+   def get_tick(self):
+      return self.tick
+
+class BarLineDisplay(InstructionGroup):
+   def __init__(self, tick):
+      super(BarLineDisplay, self).__init__()
+      self.tick = tick
+      self.line = Rectangle(pos=(0, tick), size=(800, 1))
+      self.add(Color(255,255,255))
+      self.add(self.line)
+
 # holds data for gems
 class GemData(object):
    def __init__(self, filepath):
@@ -150,21 +179,26 @@ class GemData(object):
       tick = 0
       max_track = 0
       for line in iter(f):
-         colon_split = line.split(":")         
-         rhythm_type = int(colon_split[0]);
-         gemstring = colon_split[1]
-         for i in range(len(gemstring)): 
-            track = gemstring[i]
-            duration = kticksperquarter / rhythm_type
-            if track in ["1","2","3", "4", "5"]:
-               track = int(track)
-               if track > max_track:
-                  max_track = track
-               gem = Gem(tick, track, duration)
-               self.gems.append(gem)
-               self.ticks.append(tick)
-               tick += duration
-            #print "tick is: " + str(tick)
+         if line in ['\n', '\r\n']:
+            pass
+         else:
+            colon_split = line.split(":")   
+            rhythm_type = int(colon_split[0]);
+            gemstring = colon_split[1]
+            for i in range(len(gemstring)): 
+               track = gemstring[i]
+               duration = kticksperquarter / rhythm_type
+               if track == ".":
+                  tick += duration
+               elif track in ["0", "1","2","3", "4"]:
+                  track = int(track)
+                  if track > max_track:
+                     max_track = track
+                  gem = Gem(tick, track, duration)
+                  self.gems.append(gem)
+                  self.ticks.append(tick)
+                  tick += duration
+               #print "tick is: " + str(tick)
 
    def get_all_gems(self):
       return self.gems
@@ -174,7 +208,8 @@ class GemData(object):
 
    # return a sublist of the gems that match this time slice:
    def get_gems_in_range(self, start_tick, end_tick):
-      pass
+      gems_in_range = [x for x in self.gems if (start_tick <= x and x <= end_tick)]
+      return gems_in_range
 
    def get_len(self):
       return len(self.gems)
@@ -214,13 +249,15 @@ class ButtonDisplay(InstructionGroup):
       self.add(self.rectangle)
    # displays when button is down (and if it hit a gem)
    def on_down(self, hit):
+      self.color.a = 1
       if hit:
-         print "Hit a gem!"
+         print "Hit a gem."
       else:
          print "Did not hit a gem."
 
    # back to normal state
    def on_up(self):
+      self.color.a = .75
       print "Button on up" 
 
 # Displays all game elements: Nowbar, Buttons, BarLines, Gems.
@@ -244,14 +281,20 @@ class BeatMatchDisplay(InstructionGroup):
 
       #Gem Creation
       self.gem_data = gem_data
+
+      #Barline Creation
+      max_tick  = self.gem_data.get_all_gems()[-1].get_tick()
+      print "max_tick is: " + str(max_tick)
+      for tick in range(0, max_tick, kticksperquarter):
+         bar = BarLineDisplay(tick - kticksperquarter/2)
+         self.add(bar)
+
       for gem in self.gem_data.get_all_gems():
          pos = (gem.track_to_posx(), gem.tick_to_posy())
-         print "track is: " + str(gem.track)
          color = color_dict[gem.track]
          gemdisplay = GemDisplay(pos, color)
          self.add(gemdisplay)
-         print "Made GemDisplay at pos: " + str(pos)
-
+      
 
 
    # called by Player. Causes theright thing to happen
@@ -272,9 +315,7 @@ class BeatMatchDisplay(InstructionGroup):
 
    # call every frame to make gems and barlines flow down the screen
    def on_update(self) :
-      print str(self.cond.get_tick())
-      self.translate.y = self.cond.get_tick()
-      print self.translate.y
+      self.translate.y = - (self.cond.get_tick()/4.0)
 
 # Handles game logic and keeps score. 
 # Controls the display and the audio
