@@ -52,7 +52,7 @@ class MainWidget(BaseWidget) :
          self.audiocontroller.toggle()
 
       if keycode[1] == 't':
-         ##print(self.gemdata.get_all_ticks())
+         ###print(self.gemdata.get_all_ticks())
          pass
       if keycode[1] == 'spacebar':
          self.audiocontroller.set_mute(True)
@@ -107,7 +107,7 @@ class AudioController(object):
       # set up Tempo Track correctly.
       self.tempo_map = TempoMap("_takemeout_tempo.txt")
       self.song.cond.set_tempo_map(self.tempo_map)
-      ###print(str(self.song.cond.tempo_map))
+      ####print(str(self.song.cond.tempo_map))
       
       #add background track
       self.bg_track = AudioTrack(self.audio, self.song_name + "_bg.wav")
@@ -201,7 +201,7 @@ class GemData(object):
                   self.gems.append(gem)
                   self.ticks.append(tick)
                   tick += duration
-               ###print"tick is: " + str(tick)
+               ####print"tick is: " + str(tick)
 
    def get_all_gems(self):
       return self.gems
@@ -238,6 +238,7 @@ class GemDisplay(InstructionGroup):
       self.pos = pos
       self.rectangle = Rectangle(pos=pos, size=(track_width, gem_height))
       self.triggered = False
+      self.added_to_canvas = False
       self.add(self.color)
       self.add(self.rectangle)
 
@@ -249,8 +250,8 @@ class GemDisplay(InstructionGroup):
 
    # change to display a passed gem
    def on_pass(self):
-      ##print"hasn't been hit"
-      #print "gemdisplay hasn't been hit"
+      ###print"hasn't been hit"
+      ##print "gemdisplay hasn't been hit"
       self.color.rgb = (.5,.5,.5)
       self.color.a = .5
       self.triggered = True
@@ -263,6 +264,20 @@ class GemDisplay(InstructionGroup):
    def on_update(self, dt):
       pass
 
+   def add_to_canvas(self):
+      if not (self.added_to_canvas):
+         #print "in add_to_canvas"
+         self.add(self.color)
+         self.add(self.rectangle)
+         self.added_to_canvas = True
+
+   def remove_from_canvas(self):
+      if (self.added_to_canvas):
+         print "in remove_from_canvas"
+         self.remove(self.color)
+         self.remove(self.rectangle)
+         self.added_to_canvas = False
+
 # Displays one button on the nowbar
 class ButtonDisplay(InstructionGroup):
    def __init__(self, pos, color):
@@ -274,6 +289,7 @@ class ButtonDisplay(InstructionGroup):
       self.rectangle = Rectangle(pos=(pos, 100), size=(track_width, gem_height))
       self.add(self.color)
       self.add(self.rectangle)
+
    # displays when button is down (and if it hit a gem)
    
    def on_button_down(self):
@@ -285,18 +301,18 @@ class ButtonDisplay(InstructionGroup):
       if hit:
          self.color.rgb = (1,1,1)
          self.color.a = 1
-         ###print"Hit a gem."
+         ####print"Hit a gem."
       else:
          self.color.rgb = (.5,.5,.5)
          self.color.a = .5
-         ###print"Did not hit a gem."
+         ####print"Did not hit a gem."
 
    # back to normal state
    def on_up(self):
-      print "on_up being called"
+      #print "on_up being called"
       self.color.rgb = self.rgb
       self.color.a = .5
-      ###print"Button on up"    
+      ####print"Button on up"  
 
 # Displays all game elements: Nowbar, Buttons, BarLines, Gems.
 # scrolls the gem display.
@@ -315,7 +331,7 @@ class BeatMatchDisplay(InstructionGroup):
          self.add(button)
 
       self.translate = Translate(0,0)
-      ##print"translate: " + str(self.translate)
+      ###print"translate: " + str(self.translate)
       self.add(self.translate)
 
       #Gem Creation
@@ -323,7 +339,7 @@ class BeatMatchDisplay(InstructionGroup):
 
       #Barline Creation
       max_tick  = self.gem_data.get_all_gems()[-1].get_tick()
-      ###print"max_tick is: " + str(max_tick)
+      ####print"max_tick is: " + str(max_tick)
       for tick in range(0, max_tick, kticksperquarter):
          bar = BarLineDisplay(tick - kticksperquarter/2)
          self.add(bar)
@@ -339,18 +355,18 @@ class BeatMatchDisplay(InstructionGroup):
       
    # called by Player. Causes theright thing to happen
    def gem_hit(self, gem):
-      ##print"in gem_hit!"
+      ###print"in gem_hit!"
       self.gemdisplaydict[gem].on_hit()
 
    # called by Player. Causes the right thing to happen
    def gem_pass(self, gem):
-      ##print"in gem_pass!"
+      ###print"in gem_pass!"
       self.gemdisplaydict[gem].on_pass()
       self.nowbar[gem.track].on_down(False)
 
    # called by Player. Causes the right thing to happen
    def on_button_down(self, lane, hit):
-      ##print"on_button_down from beatmatchdisplay"
+      ###print"on_button_down from beatmatchdisplay"
       self.nowbar[lane].on_down(hit)
 
    # called by Player. Causes the right thing to happen
@@ -361,10 +377,20 @@ class BeatMatchDisplay(InstructionGroup):
    def on_update(self) :
       self.translate.y = - (self.cond.get_tick()/4.0)
 
-   def draw_gems(drawable_gems):
-      non_drawable_gems = [gem for gem in self.gem_data.get_all_gems() if not gem in drawable_gems]
+   def draw_gems(self,drawable_gems):
+      non_drawable_gems = []
+      for gem in self.gem_data.get_all_gems():
+         if gem not in drawable_gems:
+            non_drawable_gems.append(gem)
 
-      for gems in drawable_gems
+      #print "non_drawable_gems: " + str(non_drawable_gems)
+      
+      for gem in drawable_gems:
+         ##print "in beatmatchdisplay drawable_gems"
+         self.gemdisplaydict[gem].add_to_canvas()
+
+      for gem in non_drawable_gems:
+         self.gemdisplaydict[gem].remove_from_canvas()
 
 # Handles game logic and keeps score. 
 # Controls the display and the audio
@@ -378,7 +404,7 @@ class Player(object):
 
    # called by MainWidget
    def on_button_down(self, lane) :
-      print "player on button down"
+      #print "player on button down"
 
       self.beatmatchdisplay.nowbar[lane].on_button_down()
 
@@ -389,33 +415,33 @@ class Player(object):
       possible_gem_list = self.gemdata.get_gems_in_range_on_track(lower_tick_bound, upper_tick_bound, lane)      
       if len(possible_gem_list) == 0:
          pass
-         ##print"lower_tick_bound: " + str(lower_tick_bound)
-         ##print"upper_tick_bound: " + str(upper_tick_bound)
-         ##print"lane: " + str(lane)
-         ###printself.gemdata.get_all_gems()
+         ###print"lower_tick_bound: " + str(lower_tick_bound)
+         ###print"upper_tick_bound: " + str(upper_tick_bound)
+         ###print"lane: " + str(lane)
+         ####printself.gemdata.get_all_gems()
       elif len(possible_gem_list) == 1:
 
-         ##print"lower_tick_bound: " + str(lower_tick_bound)
-         ##print"upper_tick_b ound: " + str(upper_tick_bound)
-         ##print"lane: " + str(lane)
-         ##print"hit gem"
+         ###print"lower_tick_bound: " + str(lower_tick_bound)
+         ###print"upper_tick_b ound: " + str(upper_tick_bound)
+         ###print"lane: " + str(lane)
+         ###print"hit gem"
          self.beatmatchdisplay.gem_hit(possible_gem_list[0])
       else:
          pass
-         ##print"multiple gems in range"
+         ###print"multiple gems in range"
 
    # called by MainWidget
    def on_button_up(self, lane):
-      print "player on button up"
+      #print "player on button up"
       #self.button_up()
       self.beatmatchdisplay.on_button_up(lane)
 
    # needed to check if for pass gems (ie, went past the slop window)
    def on_update(self):
-      #print "in on_update"
+      ##print "in on_update"
       self.draw_gems()
       older_tick = self.audio_ctrl.song.cond.get_tick()
-      #print "older tick is: " + str(older_tick)
+      ##print "older tick is: " + str(older_tick)
       lower_tick_bound = (older_tick)/4 - 50 + 50
       upper_tick_bound = (older_tick)/4 + 50 + 50
       possible_gem_list = []
@@ -426,26 +452,29 @@ class Player(object):
       untouched_gems = []
       for gem in possible_gem_list:
          gemdisplay = self.beatmatchdisplay.gemdisplaydict[gem]
-         #print "gemdisplay_has_triggered():" + str(gemdisplay.has_triggered())
+         ##print "gemdisplay_has_triggered():" + str(gemdisplay.has_triggered())
          if not(gemdisplay.has_triggered()):
             untouched_gems.append(gem)
 
       if len(untouched_gems) == 0:
-         #print"no hit gems"
+         ##print"no hit gems"
          pass
       else:
-         #print "some non-hit gems"
+         ##print "some non-hit gems"
          for gem in untouched_gems:
             self.beatmatchdisplay.gem_pass(gem)
 
    def draw_gems(self):
+      #print "in draw_gems"
       current_tick = self.audio_ctrl.song.cond.get_tick()
-      top_of_screen = (current_tick)/4 - 1000
+      top_of_screen = (current_tick)/4 - 600
       bottom_of_screen = (current_tick)/4 + 50
 
-      drawable_gems = []
-      for lane in range(5):
-         drawable_gems += self.gemdata.get_gems_in_range_on_track(top_of_screen, bottom_of_screen, lane)
+      ##print "top_of_screen: " + str(top_of_screen)
+      ##print "bottom_of_screen: " + str(bottom_of_screen)
+
+      drawable_gems = self.gemdata.get_gems_in_range(top_of_screen, bottom_of_screen)
+      #print "drawable_gems is: " + str(drawable_gems)
 
       self.beatmatchdisplay.draw_gems(drawable_gems)   
 
